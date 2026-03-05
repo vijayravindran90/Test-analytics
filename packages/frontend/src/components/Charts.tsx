@@ -11,25 +11,21 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import type { TestMetrics } from '@test-analytics/shared';
 
 interface TrendChartProps {
   data: Array<{
     date: string;
-    metrics: {
-      passRate: number;
-      failureRate: number;
-      flakinessPercentage: number;
-      stability: number;
-    };
+    metrics: TestMetrics;
   }>;
   title: string;
-  metric?: 'passRate' | 'failureRate' | 'flakinessPercentage' | 'stability';
+  metric?: keyof TestMetrics;
 }
 
 export function TrendChart({ data, title, metric = 'passRate' }: TrendChartProps) {
   const chartData = data.map(item => ({
     date: new Date(item.date).toLocaleDateString(),
-    value: item.metrics[metric],
+    value: item.metrics[metric as keyof TestMetrics] as number,
   }));
 
   return (
@@ -51,10 +47,7 @@ export function TrendChart({ data, title, metric = 'passRate' }: TrendChartProps
 interface DurationChartProps {
   data: Array<{
     date: string;
-    metrics: {
-      avgDuration: number;
-      totalDuration: number;
-    };
+    metrics: TestMetrics;
   }>;
 }
 
@@ -83,11 +76,7 @@ export function DurationChart({ data }: DurationChartProps) {
 interface MetricsOverviewChartProps {
   data: Array<{
     date: string;
-    metrics: {
-      passRate: number;
-      failureRate: number;
-      flakinessPercentage: number;
-    };
+    metrics: TestMetrics;
   }>;
 }
 
