@@ -23,11 +23,8 @@ jobs:
       - name: Build shared package
         run: npm run build -w packages/shared
 
-      - name: Build frontend
+      - name: Build all packages
         run: npm run build
-        working-directory: packages/frontend
-        env:
-          REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL || 'https://your-backend-url.com/api' }}
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
