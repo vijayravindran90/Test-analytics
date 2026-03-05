@@ -11,6 +11,9 @@ export default function Projects() {
   const [creating, setCreating] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Debug logging
+  console.log('Projects component:', { projects, loading, error, projectsLength: projects?.length });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setCreating(true);
@@ -32,7 +35,16 @@ export default function Projects() {
   if (error) {
     return (
       <div className="card p-6 border-danger-200 bg-danger-50">
-        <p className="text-danger-700">Error: {error}</p>
+        <p className="text-danger-700">Error loading projects: {error}</p>
+        <p className="text-sm text-neutral-600 mt-2">
+          API URL: {process.env.REACT_APP_API_URL || 'Not set'}
+        </p>
+        <button 
+          onClick={() => window.location.reload()} 
+          className="mt-4 btn btn-primary"
+        >
+          Retry
+        </button>
       </div>
     );
   }
