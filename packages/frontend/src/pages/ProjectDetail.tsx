@@ -7,6 +7,7 @@ import FlakyTestsList from '../components/FlakyTestsList';
 import PerformanceAlerts from '../components/PerformanceAlerts';
 import { TrendChart, DurationChart, MetricsOverviewChart } from '../components/Charts';
 import { formatDuration, formatPercent } from '../utils/format';
+import type { TestResult } from '@test-analytics/shared';
 
 export default function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -192,7 +193,7 @@ export default function ProjectDetail() {
               </tr>
             </thead>
             <tbody>
-              {recentTests.slice(0, 10).map((test) => (
+              {recentTests.slice(0, 10).map((test: TestResult) => (
                 <tr key={test.id} className="border-b hover:bg-neutral-50">
                   <td className="px-6 py-3 text-sm">
                     <p className="font-medium text-neutral-900">{test.testName}</p>
