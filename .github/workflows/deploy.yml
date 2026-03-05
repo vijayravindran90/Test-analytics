@@ -37,6 +37,10 @@ jobs:
 
       - name: Build all packages
         run: npm run build
+        env:
+          # Set this secret in GitHub repository settings to your Railway backend URL + /api
+          # Example: https://your-project.up.railway.app/api
+          REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL || 'https://your-backend-url.com/api' }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
