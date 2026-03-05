@@ -53,6 +53,12 @@ export default function ProjectDetail() {
 
   const { metrics, flakyTests, performanceAlerts, trends, recentTests } = dashboardData;
 
+  // Transform trends data to convert Date to string
+  const transformedTrends = trends.map((trend: any) => ({
+    ...trend,
+    date: typeof trend.date === 'string' ? trend.date : new Date(trend.date).toISOString().split('T')[0],
+  }));
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -142,20 +148,20 @@ export default function ProjectDetail() {
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {trends.length > 0 && (
+        {transformedTrends.length > 0 && (
           <>
             <TrendChart
-              data={trends}
+              data={transformedTrends}
               title="Pass Rate Trend"
               metric="passRate"
             />
-            <DurationChart data={trends} />
+            <DurationChart data={transformedTrends} />
             <TrendChart
-              data={trends}
+              data={transformedTrends}
               title="Flakiness Trend"
               metric="flakinessPercentage"
             />
-            <MetricsOverviewChart data={trends} />
+            <MetricsOverviewChart data={transformedTrends} />
           </>
         )}
       </div>
