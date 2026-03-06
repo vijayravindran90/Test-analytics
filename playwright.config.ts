@@ -25,9 +25,9 @@ export default defineConfig({
     [
       '@test-analytics/reporter',
       {
-        backendUrl: process.env.ANALYTICS_API_URL || 'http://localhost:3001/api',
-        projectId: process.env.PROJECT_ID || 'default-project',
-        projectName: process.env.PROJECT_NAME || 'Default Project',
+        backendUrl: 'https://test-analytics-production.up.railway.app/api',
+        projectId: '296ff5f9-a0a5-46ac-8117-fb45c42e7e8e',
+        projectName: 'Playwright Test',
         apiKey: process.env.API_KEY,
         enabled: true,
       },
@@ -37,7 +37,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:3000',
+    baseURL: 'https://vijayravindran90.github.io/Test-analytics',
     trace: 'on-first-retry',
   },
 
@@ -48,15 +48,6 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
 
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
-
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
 
     /* Test against mobile viewports. */
     // {
