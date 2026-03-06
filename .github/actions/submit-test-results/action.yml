@@ -1,0 +1,21 @@
+name: 'Submit Test Results to Analytics'
+description: 'Upload Playwright test results to Test Analytics Dashboard'
+
+inputs:
+  api-url:
+    description: 'Test Analytics API URL'
+    required: true
+  project-id:
+    description: 'Project ID'
+    required: true
+  project-name:
+    description: 'Project Name'
+    required: false
+  results-file:
+    description: 'Path to Playwright JSON report'
+    default: 'playwright-report/results.json'
+    required: false
+
+runs:
+  using: 'node16'
+  main: 'index.js'

@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
+const API_BASE_URL = 'https://test-analytics-production.up.railway.app/api';
 
 console.log('API Base URL:', API_BASE_URL);
 
