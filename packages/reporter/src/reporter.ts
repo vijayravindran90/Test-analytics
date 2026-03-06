@@ -1,7 +1,7 @@
 import { Reporter, TestCase, TestResult, FullConfig } from '@playwright/test/reporter';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
-import type { TestResult as AnalyticsTestResult, TestSuite } from '@test-analytics/shared';
+import type { TestResult as AnalyticsTestResult, TestSuite } from 'test-analytics-shared';
 
 interface ReporterConfig {
   backendUrl: string;

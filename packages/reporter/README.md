@@ -1,11 +1,11 @@
-# @reporter/test-analytics-reporter
+# test-analytics-reporter
 
 A Playwright test reporter that sends test results to the Test Analytics Dashboard.
 
 ## Installation
 
 ```bash
-npm install @reporter/test-analytics-reporter
+npm install test-analytics-reporter
 ```
 
 ## Usage
@@ -20,7 +20,7 @@ export default defineConfig({
   reporter: [
     ['html'],
     [
-      '@reporter/test-analytics-reporter',
+      'test-analytics-reporter',
       {
         backendUrl: process.env.ANALYTICS_API_URL || 'http://localhost:3001/api',
         projectId: process.env.PROJECT_ID || 'default-project',

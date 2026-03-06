@@ -1,13 +1,40 @@
 {
-  "name": "@test-analytics/shared",
+  "name": "test-analytics-shared",
   "version": "1.0.0",
+  "description": "Shared types for test-analytics-reporter",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vijayravindran90/Test-analytics.git",
+    "directory": "packages/shared"
+  },
+  "keywords": [
+    "playwright",
+    "test",
+    "analytics",
+    "types"
+  ],
+  "author": "vijayravindran90",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/vijayravindran90/Test-analytics/issues"
+  },
+  "homepage": "https://github.com/vijayravindran90/Test-analytics#readme",
   "dependencies": {},
   "devDependencies": {
     "typescript": "^5.3.3"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
