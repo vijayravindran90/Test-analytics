@@ -41,9 +41,10 @@ class PlaywrightAnalyticsReporter implements Reporter {
     this.testStartTimes.set(testId, new Date());
     this.testRetries.set(testId, 0);
     
-    // Capture browser name from test's project
-    if (test.parent?.project?.name) {
-      this.currentBrowser = test.parent.project.name;
+    // Capture browser name from test's project (stored in private _project property)
+    const projectConfig = (test.parent as any)?._project;
+    if (projectConfig?.name) {
+      this.currentBrowser = projectConfig.name;
     }
   }
 
@@ -61,11 +62,9 @@ class PlaywrightAnalyticsReporter implements Reporter {
     // Map Playwright status to our status format
     const status = this.mapPlaywrightStatus(result.status);
     
-    // Get browser name from test's project
-    let browserName = 'unknown';
-    if (test.parent?.project?.name) {
-      browserName = test.parent.project.name;
-    }
+    // Get browser name from test's project (stored in private _project property)
+    const projectConfig = (test.parent as any)?._project;
+    let browserName = projectConfig?.name || 'unknown';
 
     const testAnalyticsResult: AnalyticsTestResult = {
       id: uuidv4(),
