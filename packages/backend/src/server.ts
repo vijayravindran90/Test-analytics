@@ -21,8 +21,8 @@ app.use(cors({
   credentials: true,
 }));
 
-// Health check
-app.get('/health', (req, res) => {
+// Health check (accessible at both /health and /api/health)
+app.get(['/health', '/api/health'], (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
