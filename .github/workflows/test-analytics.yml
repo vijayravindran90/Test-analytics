@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     
     env:
-      ANALYTICS_API_URL: ${{ secrets.ANALYTICS_API_URL || 'http://localhost:3001/api' }}
+      ANALYTICS_API_URL: https://test-analytics-production.up.railway.app/
       PROJECT_ID: ${{ secrets.PROJECT_ID || github.repository }}
       PROJECT_NAME: ${{ github.event.repository.name }}
       API_KEY: ${{ secrets.ANALYTICS_API_KEY }}

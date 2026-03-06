@@ -40,7 +40,8 @@ jobs:
         env:
           # Set this secret in GitHub repository settings to your Railway backend URL + /api
           # Example: https://your-project.up.railway.app/api
-          REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL || 'https://your-backend-url.com/api' }}
+          #REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL || 'https://your-backend-url.com/api' }}
+          REACT_APP_API_URL: https://test-analytics-production.up.railway.app/api
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
