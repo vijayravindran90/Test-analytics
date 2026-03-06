@@ -65,9 +65,10 @@ class PlaywrightAnalyticsReporter implements Reporter {
       flakyAttempts: result.retry > 0 ? result.retry : 0,
       startTime,
       endTime,
-      error: result.error?.message || result.message || undefined,
-      tags: test.tags || [],
-      browser: result.worker?.parallelIndex ? `worker-${result.worker.parallelIndex}` : 'unknown',
+      error: result.error?.message || undefined,
+      tags: [],
+      browser: 'unknown',
+      os: 'unknown',
       environment: process.env.TEST_ENV || 'unknown',
       buildId: process.env.CI_BUILD_ID || process.env.GITHUB_RUN_ID,
       branchName: process.env.CI_COMMIT_BRANCH || process.env.GITHUB_REF_NAME || 'unknown',
@@ -106,7 +107,7 @@ class PlaywrightAnalyticsReporter implements Reporter {
         headers['Authorization'] = `Bearer ${this.config.apiKey}`;
       }
 
-      await axios.post(`${this.config.backendUrl}/api/tests/batch`, {
+      await axios.post(`${this.config.backendUrl}/tests/batch`, {
         results: this.testResults,
         projectId: this.config.projectId,
         projectName: this.config.projectName,
@@ -122,20 +123,20 @@ class PlaywrightAnalyticsReporter implements Reporter {
   }
 
   private generateTestId(test: TestCase): string {
-    return `${test.file}::${test.title}`;
+    return `${test.location?.file || 'unknown'}::${test.title}`;
   }
 
   private mapPlaywrightStatus(
-    status: 'passed' | 'failed' | 'timedout' | 'skipped' | 'interrupted'
+    status: 'passed' | 'failed' | 'timedOut' | 'skipped' | 'interrupted'
   ): AnalyticsTestResult['status'] {
-    const statusMap = {
-      passed: 'PASSED' as const,
-      failed: 'FAILED' as const,
-      timedout: 'TIMEOUT' as const,
-      skipped: 'SKIPPED' as const,
-      interrupted: 'FAILED' as const,
+    const statusMap: Record<string, AnalyticsTestResult['status']> = {
+      passed: 'PASSED',
+      failed: 'FAILED',
+      timedOut: 'TIMEOUT',
+      skipped: 'SKIPPED',
+      interrupted: 'FAILED',
     };
-    return statusMap[status];
+    return statusMap[status] || 'FAILED';
   }
 }
 

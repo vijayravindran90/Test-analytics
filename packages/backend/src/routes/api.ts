@@ -38,37 +38,58 @@ const router = express.Router();
 // Save test results
 router.post('/tests/batch', async (req: Request, res: Response) => {
   try {
-    const { results, projectId } = req.body;
+    const { results, projectId, projectName } = req.body;
 
     if (!Array.isArray(results)) {
       return res.status(400).json({ error: 'Results must be an array' });
     }
 
-    // Get project
-    const project = await projectService.getProject(projectId);
+    // Ensure project exists
+    let project = await projectService.getProject(projectId);
     if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
+      project = await projectService.createProject(
+        projectName || 'Unknown Project',
+        'Auto-created from reporter upload',
+        'unknown'
+      );
     }
 
     // Transform results to TestResult format
-    const testResults: TestResult[] = results.map((result: any) => ({
-      id: result.id,
-      projectId,
-      projectName: project.name,
-      testId: result.id,
-      testName: result.name,
-      status: result.status.toUpperCase() as 'PASSED' | 'FAILED' | 'SKIPPED' | 'TIMEOUT',
-      duration: result.duration,
-      retries: 0,
-      flakyAttempts: 0,
-      startTime: new Date(result.timestamp),
-      endTime: new Date(new Date(result.timestamp).getTime() + result.duration),
-      error: result.error,
-      tags: [],
-      browser: 'unknown',
-      os: 'unknown',
-      environment: 'unknown',
-    }));
+    const testResults: TestResult[] = results.map((result: any) => {
+      const statusValue = String(result.status || 'FAILED').toUpperCase();
+      const mappedStatus = (['PASSED', 'FAILED', 'SKIPPED', 'TIMEOUT'].includes(statusValue)
+        ? statusValue
+        : 'FAILED') as 'PASSED' | 'FAILED' | 'SKIPPED' | 'TIMEOUT';
+
+      const duration = Number(result.duration || 0);
+      const start = result.startTime ? new Date(result.startTime) : (result.timestamp ? new Date(result.timestamp) : new Date());
+      const end = result.endTime
+        ? new Date(result.endTime)
+        : new Date(start.getTime() + Math.max(0, duration));
+
+      return {
+        id: result.id,
+        projectId: project!.id,
+        projectName: project!.name,
+        testId: result.testId || result.id,
+        testName: result.testName || result.name || 'Unnamed Test',
+        status: mappedStatus,
+        duration,
+        retries: Number(result.retries || 0),
+        flakyAttempts: Number(result.flakyAttempts || 0),
+        startTime: start,
+        endTime: end,
+        error: result.error,
+        tags: Array.isArray(result.tags) ? result.tags : [],
+        browser: result.browser || 'unknown',
+        os: result.os || 'unknown',
+        environment: result.environment || 'unknown',
+        buildId: result.buildId,
+        commitHash: result.commitHash,
+        branchName: result.branchName,
+        author: result.author,
+      };
+    });
 
     // Save test results
     await testService.saveTestResults(testResults);
@@ -76,7 +97,7 @@ router.post('/tests/batch', async (req: Request, res: Response) => {
     res.json({
       success: true,
       message: `Saved ${results.length} test results`,
-      projectId,
+      projectId: project.id,
     });
   } catch (error) {
     console.error('Error saving test results:', error);
