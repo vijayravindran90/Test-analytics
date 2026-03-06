@@ -23,7 +23,7 @@ export default defineConfig({
   reporter: [
     ['html'],
     [
-      '@test-analytics/reporter',
+      'test-analytics-reporter',
       {
         backendUrl: 'https://test-analytics-production.up.railway.app/api',
         projectId: '296ff5f9-a0a5-46ac-8117-fb45c42e7e8e',
