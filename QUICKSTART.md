@@ -80,7 +80,7 @@ In your `playwright.config.ts`:
 
 ```typescript
 reporter: [
-  ['@test-analytics/reporter', {
+  ['test-analytics-reporter', {
     backendUrl: 'http://localhost:3001/api',
     projectId: 'your-project-id-from-step-2',
     projectName: 'My Test Suite',

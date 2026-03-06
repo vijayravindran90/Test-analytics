@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
-import type { FlakyTest } from '@test-analytics/shared';
+import type { FlakyTest } from 'test-analytics-shared';
 import { formatPercent } from '../utils/format';
 
 interface FlakyTestsListProps {

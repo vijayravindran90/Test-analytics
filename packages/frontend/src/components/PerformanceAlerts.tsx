@@ -1,6 +1,6 @@
 import React from 'react';
 import { Zap } from 'lucide-react';
-import type { PerformanceAlert } from '@test-analytics/shared';
+import type { PerformanceAlert } from 'test-analytics-shared';
 import { formatDuration, formatDate } from '../utils/format';
 
 interface PerformanceAlertsProps {

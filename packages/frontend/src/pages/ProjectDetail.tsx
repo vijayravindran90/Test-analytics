@@ -7,7 +7,7 @@ import FlakyTestsList from '../components/FlakyTestsList';
 import PerformanceAlerts from '../components/PerformanceAlerts';
 import { TrendChart, DurationChart, MetricsOverviewChart } from '../components/Charts';
 import { formatDuration, formatPercent } from '../utils/format';
-import type { TestResult } from '@test-analytics/shared';
+import type { TestResult } from 'test-analytics-shared';
 
 export default function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>();

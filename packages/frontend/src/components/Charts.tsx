@@ -11,7 +11,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import type { TestMetrics } from '@test-analytics/shared';
+import type { TestMetrics } from 'test-analytics-shared';
 
 interface TrendChartProps {
   data: Array<{

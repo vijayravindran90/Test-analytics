@@ -108,7 +108,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   reporter: [
-    ['@test-analytics/reporter', {
+    ['test-analytics-reporter', {
       backendUrl: 'http://localhost:3001/api',
       projectId: 'my-project-id',
       projectName: 'My Project',

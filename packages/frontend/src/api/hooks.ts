@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import apiClient from './client';
-import type { DashboardData, TestMetrics, FlakyTest, PerformanceAlert, Project } from '@test-analytics/shared';
+import type { DashboardData, TestMetrics, FlakyTest, PerformanceAlert, Project } from 'test-analytics-shared';
 
 export function useDashboardData(projectId: string, days: number = 30) {
   const [data, setData] = useState<DashboardData | null>(null);

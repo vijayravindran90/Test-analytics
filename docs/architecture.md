@@ -45,7 +45,7 @@ This document explains the architecture and design decisions of the Test Analyti
 │                  Playwright Tests                                 │
 │                                                                   │
 │  ┌──────────────────────────────────────────────────────────┐    │
-│  │  @test-analytics/reporter                                │    │
+│  │  test-analytics-reporter                                │    │
 │  │  (Custom Playwright Reporter)                            │    │
 │  └──────────────────────────────────────────────────────────┘    │
 │                               │ Batches test results                   │
@@ -56,7 +56,7 @@ This document explains the architecture and design decisions of the Test Analyti
 
 ## Component Structure
 
-### Shared Package (`@test-analytics/shared`)
+### Shared Package (`test-analytics-shared`)
 
 TypeScript type definitions used across the entire project:
 - `TestResult` - Individual test execution data
@@ -71,7 +71,7 @@ TypeScript type definitions used across the entire project:
 - Reduces bugs from type mismatches
 - Easier API contract documentation
 
-### Reporter Package (`@test-analytics/reporter`)
+### Reporter Package (`test-analytics-reporter`)
 
 Custom Playwright reporter that:
 1. Hooks into test lifecycle (`onTestBegin`, `onTestEnd`, `onEnd`)

@@ -152,7 +152,7 @@ API_KEY=optional-secret-key
 
 ```typescript
 reporter: [
-  ['@test-analytics/reporter', {
+  ['test-analytics-reporter', {
     backendUrl: 'http://localhost:3001/api',
     projectId: 'my-project-id',
     projectName: 'My Project',
@@ -230,7 +230,7 @@ psql -U postgres -d test_analytics -c \
 
 ## Troubleshooting
 
-### "Cannot find module '@test-analytics/shared'"
+### "Cannot find module 'test-analytics-shared'"
 
 ```bash
 # Ensure all packages are installed
