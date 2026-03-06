@@ -1,11 +1,39 @@
 {
-  "name": "@test-analytics/reporter",
+  "name": "@reporter/test-analytics-reporter",
   "version": "1.0.0",
+  "description": "Playwright test reporter for sending results to Test Analytics Dashboard",
   "main": "dist/reporter.js",
   "types": "dist/reporter.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vijayravindran90/Test-analytics.git",
+    "directory": "packages/reporter"
+  },
+  "keywords": [
+    "playwright",
+    "test",
+    "testing",
+    "reporter",
+    "analytics",
+    "dashboard",
+    "ci-cd",
+    "automated-testing"
+  ],
+  "author": "vijayravindran90",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/vijayravindran90/Test-analytics/issues"
+  },
+  "homepage": "https://github.com/vijayravindran90/Test-analytics#readme",
   "dependencies": {
     "@test-analytics/shared": "1.0.0",
     "@playwright/test": "^1.40.0",
@@ -16,5 +44,8 @@
     "typescript": "^5.3.3",
     "@types/node": "^20.0.0",
     "@types/uuid": "^9.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
