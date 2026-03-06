@@ -65,6 +65,11 @@ npm run dev -w packages/frontend
 
 Open your browser and navigate to: **http://localhost:3000**
 
+From the dashboard UI:
+- Use the header toggle to switch between light and dark mode
+- Click `Docs` in the header to open the architecture documentation on GitHub
+- Use the GitHub icon in the footer to open the repository
+
 ## Create Your First Project
 
 1. Click "New Project" button

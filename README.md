@@ -11,6 +11,9 @@ A comprehensive test reporting and analytics dashboard for Playwright tests, sim
 - **Historical Trend Analysis**: Visualize test metrics over time with interactive charts
 - **Multi-Project Support**: Manage and compare metrics across multiple test projects
 - **CI/CD Integration**: Built-in support for GitHub Actions, GitLab CI, and Jenkins
+- **Theme Toggle**: Switch between light and dark mode from the dashboard header
+- **Quick Documentation Access**: Header `Docs` link opens architecture documentation on GitHub
+- **Persistent Footer Links**: Footer includes repository shortcut and copyright attribution
 
 ## Architecture
 
@@ -171,6 +174,12 @@ Test results will be automatically sent to the analytics dashboard.
 - `GET /api/projects/:projectId/recent-tests` - Get recent test results
 
 ## Dashboard Features
+
+### App Navigation & UI
+
+- **Light/Dark Theme Toggle**: Use the header toggle to switch themes; preference is saved in browser storage
+- **Docs Shortcut**: `Docs` in the header opens `docs/architecture.md` on GitHub in a new tab
+- **Footer GitHub Link**: Click the GitHub icon in the footer to open the project repository
 
 ### Metrics Overview
 

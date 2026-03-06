@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './index.css';
 import Header from './components/Header';
+import Footer from './components/Footer';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 
@@ -26,9 +27,9 @@ function App() {
 
   return (
     <Router>
-      <div className="min-h-screen bg-neutral-50">
+      <div className="flex min-h-screen flex-col bg-neutral-50">
         <Header theme={theme} onToggleTheme={toggleTheme} />
-        <main className="container mx-auto px-4 py-8">
+        <main className="container mx-auto flex-1 px-4 py-8">
           <Routes>
             <Route path="/" element={<Projects />} />
             <Route path="/projects" element={<Projects />} />
@@ -36,6 +37,7 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
+        <Footer />
       </div>
     </Router>
   );
