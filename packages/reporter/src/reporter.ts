@@ -18,6 +18,8 @@ class PlaywrightAnalyticsReporter implements Reporter {
   private startTime: Date = new Date();
   private testRetries: Map<string, number> = new Map();
   private testStartTimes: Map<string, Date> = new Map();
+  private currentBrowser: string = 'unknown';
+  private playwrightConfig: FullConfig | null = null;
 
   constructor(config: ReporterConfig) {
     this.config = {
@@ -28,6 +30,7 @@ class PlaywrightAnalyticsReporter implements Reporter {
   }
 
   async onBegin(config: FullConfig): Promise<void> {
+    this.playwrightConfig = config;
     if (this.config.enabled) {
       console.log(`[Analytics] Starting test run for project: ${this.config.projectName}`);
     }
@@ -37,6 +40,11 @@ class PlaywrightAnalyticsReporter implements Reporter {
     const testId = this.generateTestId(test);
     this.testStartTimes.set(testId, new Date());
     this.testRetries.set(testId, 0);
+    
+    // Capture browser name from test's project
+    if (test.parent?.project?.name) {
+      this.currentBrowser = test.parent.project.name;
+    }
   }
 
   async onTestEnd(test: TestCase, result: TestResult): Promise<void> {
@@ -52,6 +60,12 @@ class PlaywrightAnalyticsReporter implements Reporter {
 
     // Map Playwright status to our status format
     const status = this.mapPlaywrightStatus(result.status);
+    
+    // Get browser name from test's project
+    let browserName = 'unknown';
+    if (test.parent?.project?.name) {
+      browserName = test.parent.project.name;
+    }
 
     const testAnalyticsResult: AnalyticsTestResult = {
       id: uuidv4(),
@@ -67,8 +81,8 @@ class PlaywrightAnalyticsReporter implements Reporter {
       endTime,
       error: result.error?.message || undefined,
       tags: [],
-      browser: 'unknown',
-      os: 'unknown',
+      browser: browserName,
+      os: this.getOSFromBrowser(browserName),
       environment: process.env.TEST_ENV || 'unknown',
       buildId: process.env.CI_BUILD_ID || process.env.GITHUB_RUN_ID,
       branchName: process.env.CI_COMMIT_BRANCH || process.env.GITHUB_REF_NAME || 'unknown',
@@ -124,6 +138,19 @@ class PlaywrightAnalyticsReporter implements Reporter {
 
   private generateTestId(test: TestCase): string {
     return `${test.location?.file || 'unknown'}::${test.title}`;
+  }
+
+  private getOSFromBrowser(browserName: string): string {
+    // Infer OS from browser name if possible
+    const browserLower = browserName.toLowerCase();
+    if (browserLower.includes('webkit') || browserLower.includes('safari')) {
+      return 'macOS';
+    }
+    if (browserLower.includes('firefox')) {
+      return 'linux';
+    }
+    // Chromium runs on any OS, so we set to unknown to let it be platform-agnostic
+    return 'unknown';
   }
 
   private mapPlaywrightStatus(

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
-import { useDashboardData, useProject } from '../api/hooks';
+import { useDashboardData, useProject, useBrowserMetrics, useBrowserTrends } from '../api/hooks';
 import MetricCard from '../components/MetricCard';
 import FlakyTestsList from '../components/FlakyTestsList';
 import PerformanceAlerts from '../components/PerformanceAlerts';
 import { TrendChart, DurationChart, MetricsOverviewChart } from '../components/Charts';
+import { BrowserMetricsTable, BrowserMetricsChart } from '../components/BrowserMetrics';
 import { formatDuration, formatPercent } from '../utils/format';
 import type { TestResult } from 'test-analytics-shared';
 
@@ -20,6 +21,8 @@ export default function ProjectDetail() {
 
   const { project, loading: projectLoading } = useProject(projectId);
   const { data: dashboardData, loading: dataLoading, error } = useDashboardData(projectId, days);
+  const { metrics: browserMetrics, loading: browserLoading } = useBrowserMetrics(projectId);
+  const { trends: browserTrends } = useBrowserTrends(projectId, days);
 
   if (projectLoading || dataLoading) {
     return (
@@ -172,6 +175,28 @@ export default function ProjectDetail() {
       {/* Performance Alerts */}
       <PerformanceAlerts alerts={performanceAlerts} />
 
+      {/* Browser Metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {browserMetrics && browserMetrics.length > 0 && (
+          <>
+            <BrowserMetricsChart
+              data={browserMetrics}
+              title="Tests by Browser"
+            />
+            {browserTrends && browserTrends.length > 0 && (
+              <BrowserMetricsChart
+                data={browserTrends}
+                title="Browser Pass Rate Trend"
+              />
+            )}
+          </>
+        )}
+      </div>
+
+      {browserMetrics && browserMetrics.length > 0 && (
+        <BrowserMetricsTable metrics={browserMetrics} title="Browser Performance Summary" />
+      )}
+
       {/* Recent Tests */}
       <div className="card">
         <div className="p-6 border-b">
@@ -186,6 +211,9 @@ export default function ProjectDetail() {
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-medium text-neutral-600">
                   Status
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-medium text-neutral-600">
+                  Browser
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-medium text-neutral-600">
                   Duration
@@ -216,6 +244,11 @@ export default function ProjectDetail() {
                       }`}
                     >
                       {test.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-3 text-sm text-neutral-900">
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                      {test.browser || 'unknown'}
                     </span>
                   </td>
                   <td className="px-6 py-3 text-sm text-neutral-900">

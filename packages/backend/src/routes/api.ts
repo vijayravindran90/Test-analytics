@@ -209,6 +209,47 @@ router.get('/projects/:projectId/recent-tests', async (req: Request, res: Respon
   }
 });
 
+// Get browser metrics
+router.get('/projects/:projectId/browser-metrics', async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+
+    const browserMetrics = await testService.getBrowserMetrics(projectId);
+    res.json(browserMetrics);
+  } catch (error) {
+    console.error('Error fetching browser metrics:', error);
+    res.status(500).json({ error: 'Failed to fetch browser metrics' });
+  }
+});
+
+// Get tests by specific browser
+router.get('/projects/:projectId/tests/browser/:browser', async (req: Request, res: Response) => {
+  try {
+    const { projectId, browser } = req.params;
+    const { limit = 50 } = req.query;
+
+    const tests = await testService.getTestsByBrowser(projectId, browser, parseInt(limit as string));
+    res.json(tests);
+  } catch (error) {
+    console.error('Error fetching tests by browser:', error);
+    res.status(500).json({ error: 'Failed to fetch tests by browser' });
+  }
+});
+
+// Get browser metrics trend
+router.get('/projects/:projectId/browser-trends', async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    const { days = 30 } = req.query;
+
+    const trends = await testService.getBrowserMetricsTrend(projectId, parseInt(days as string));
+    res.json(trends);
+  } catch (error) {
+    console.error('Error fetching browser trends:', error);
+    res.status(500).json({ error: 'Failed to fetch browser trends' });
+  }
+});
+
 // Projects CRUD
 router.post('/projects', async (req: Request, res: Response) => {
   try {

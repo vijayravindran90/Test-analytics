@@ -145,3 +145,52 @@ export function useProject(projectId: string) {
 
   return { project, loading, error };
 }
+
+export function useBrowserMetrics(projectId: string) {
+  const [metrics, setMetrics] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchMetrics = async () => {
+      try {
+        setLoading(true);
+        const response = await apiClient.get(`/projects/${projectId}/browser-metrics`);
+        setMetrics(response.data);
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch browser metrics');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMetrics();
+  }, [projectId]);
+
+  return { metrics, loading, error };
+}
+
+export function useBrowserTrends(projectId: string, days: number = 30) {
+  const [trends, setTrends] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchTrends = async () => {
+      try {
+        setLoading(true);
+        const response = await apiClient.get(`/projects/${projectId}/browser-trends?days=${days}`);
+        setTrends(response.data);
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch browser trends');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTrends();
+  }, [projectId, days]);
+
+  return { trends, loading, error };
+}
+

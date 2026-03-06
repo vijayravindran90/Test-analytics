@@ -424,6 +424,95 @@ export class TestService {
       author: row.author,
     }));
   }
+
+  async getBrowserMetrics(projectId: string): Promise<any[]> {
+    const result = await pool.query(
+      `SELECT 
+        browser,
+        COUNT(*) as total_tests,
+        SUM(CASE WHEN status = 'PASSED' THEN 1 ELSE 0 END) as passed_tests,
+        SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) as failed_tests,
+        SUM(CASE WHEN status = 'SKIPPED' THEN 1 ELSE 0 END) as skipped_tests,
+        ROUND(AVG(duration)::numeric, 2) as avg_duration,
+        SUM(duration) as total_duration,
+        ROUND((SUM(CASE WHEN status = 'PASSED' THEN 1 ELSE 0 END)::numeric / COUNT(*)::numeric * 100)::numeric, 2) as pass_rate
+       FROM test_results 
+       WHERE project_id = $1
+       GROUP BY browser
+       ORDER BY total_tests DESC`,
+      [projectId]
+    );
+
+    return result.rows.map((row: any) => ({
+      browser: row.browser,
+      totalTests: parseInt(row.total_tests) || 0,
+      passedTests: parseInt(row.passed_tests) || 0,
+      failedTests: parseInt(row.failed_tests) || 0,
+      skippedTests: parseInt(row.skipped_tests) || 0,
+      avgDuration: parseFloat(row.avg_duration) || 0,
+      totalDuration: parseInt(row.total_duration) || 0,
+      passRate: parseFloat(row.pass_rate) || 0,
+    }));
+  }
+
+  async getTestsByBrowser(projectId: string, browser: string, limit: number = 50): Promise<TestResult[]> {
+    const result = await pool.query(
+      `SELECT * FROM test_results 
+       WHERE project_id = $1 AND COALESCE(browser, 'unknown') = $2
+       ORDER BY created_at DESC
+       LIMIT $3`,
+      [projectId, browser, limit]
+    );
+
+    return result.rows.map((row: any) => ({
+      id: row.id,
+      projectId: row.project_id,
+      projectName: row.project_name,
+      testId: row.test_id,
+      testName: row.test_name,
+      status: row.status,
+      duration: row.duration,
+      retries: row.retries,
+      flakyAttempts: row.flaky_attempts,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      error: row.error,
+      tags: row.tags,
+      browser: row.browser,
+      os: row.os,
+      environment: row.environment,
+      buildId: row.build_id,
+      commitHash: row.commit_hash,
+      branchName: row.branch_name,
+      author: row.author,
+    }));
+  }
+
+  async getBrowserMetricsTrend(projectId: string, days: number = 30): Promise<any[]> {
+    const result = await pool.query(
+      `SELECT 
+        DATE(created_at) as date,
+        browser,
+        COUNT(*) as total_tests,
+        SUM(CASE WHEN status = 'PASSED' THEN 1 ELSE 0 END) as passed_tests,
+        SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) as failed_tests,
+        ROUND((SUM(CASE WHEN status = 'PASSED' THEN 1 ELSE 0 END)::numeric / COUNT(*)::numeric * 100)::numeric, 2) as pass_rate
+       FROM test_results 
+       WHERE project_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'
+       GROUP BY DATE(created_at), browser
+       ORDER BY date DESC, browser`,
+      [projectId]
+    );
+
+    return result.rows.map((row: any) => ({
+      date: row.date,
+      browser: row.browser,
+      totalTests: parseInt(row.total_tests) || 0,
+      passedTests: parseInt(row.passed_tests) || 0,
+      failedTests: parseInt(row.failed_tests) || 0,
+      passRate: parseFloat(row.pass_rate) || 0,
+    }));
+  }
 }
 
 export default new TestService();
