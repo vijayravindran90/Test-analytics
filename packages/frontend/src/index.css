@@ -3,11 +3,16 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
   --primary: #0ea5e9;
   --primary-dark: #0284c7;
   --success: #22c55e;
   --warning: #f59e0b;
   --danger: #ef4444;
+}
+
+:root.dark {
+  color-scheme: dark;
 }
 
 * {
@@ -18,8 +23,16 @@ body {
   @apply bg-neutral-50 text-neutral-900;
 }
 
+.dark body {
+  @apply bg-neutral-900 text-neutral-100;
+}
+
 .card {
   @apply bg-white rounded-lg border shadow-sm;
+}
+
+.dark .card {
+  @apply bg-neutral-800 border-neutral-700;
 }
 
 .btn {
@@ -32,6 +45,10 @@ body {
 
 .btn-secondary {
   @apply bg-neutral-100 text-neutral-900 hover:bg-neutral-200;
+}
+
+.dark .btn-secondary {
+  @apply bg-neutral-700 text-neutral-100 hover:bg-neutral-600;
 }
 
 .badge {
@@ -54,6 +71,10 @@ body {
   @apply p-6 bg-white rounded-lg border shadow-sm;
 }
 
+.dark .metric-card {
+  @apply bg-neutral-800 border-neutral-700;
+}
+
 .metric-label {
   @apply text-neutral-600 text-sm font-medium;
 }
@@ -64,4 +85,43 @@ body {
 
 .metric-change {
   @apply text-sm font-medium mt-2;
+}
+
+/* Global overrides for existing neutral utility classes in dark mode. */
+.dark .bg-white {
+  @apply bg-neutral-800;
+}
+
+.dark .bg-neutral-50 {
+  @apply bg-neutral-900;
+}
+
+.dark .border-neutral-200,
+.dark .border-b {
+  @apply border-neutral-700;
+}
+
+.dark .text-neutral-900 {
+  @apply text-neutral-100;
+}
+
+.dark .text-neutral-700 {
+  @apply text-neutral-200;
+}
+
+.dark .text-neutral-600,
+.dark .text-neutral-500 {
+  @apply text-neutral-400;
+}
+
+.dark .hover\:bg-neutral-50:hover {
+  @apply bg-neutral-700;
+}
+
+.dark .hover\:bg-neutral-100:hover {
+  @apply bg-neutral-700;
+}
+
+.dark .hover\:text-neutral-900:hover {
+  @apply text-neutral-100;
 }

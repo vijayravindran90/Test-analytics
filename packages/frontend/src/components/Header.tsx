@@ -1,8 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, Moon, Sun } from 'lucide-react';
 
-export default function Header() {
+interface HeaderProps {
+  theme: 'light' | 'dark';
+  onToggleTheme: () => void;
+}
+
+export default function Header({ theme, onToggleTheme }: HeaderProps) {
   return (
     <header className="bg-white border-b border-neutral-200 shadow-sm">
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
@@ -17,6 +22,15 @@ export default function Header() {
           <a href="#docs" className="text-neutral-600 hover:text-neutral-900">
             Docs
           </a>
+          <button
+            type="button"
+            onClick={onToggleTheme}
+            className="btn btn-secondary flex items-center gap-2 px-3 py-1.5"
+            aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          >
+            {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            <span className="text-sm">{theme === 'light' ? 'Dark' : 'Light'}</span>
+          </button>
         </nav>
       </div>
     </header>

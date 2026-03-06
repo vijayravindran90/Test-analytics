@@ -6,10 +6,28 @@ import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 
 function App() {
+  const [theme, setTheme] = React.useState<'light' | 'dark'>(() => {
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'light' || savedTheme === 'dark') {
+      return savedTheme;
+    }
+
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
+
+  React.useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = React.useCallback(() => {
+    setTheme((currentTheme) => (currentTheme === 'light' ? 'dark' : 'light'));
+  }, []);
+
   return (
     <Router>
       <div className="min-h-screen bg-neutral-50">
-        <Header />
+        <Header theme={theme} onToggleTheme={toggleTheme} />
         <main className="container mx-auto px-4 py-8">
           <Routes>
             <Route path="/" element={<Projects />} />
