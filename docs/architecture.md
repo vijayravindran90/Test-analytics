@@ -16,17 +16,27 @@ This document explains the architecture and design decisions of the Test Analyti
 │                   (Port 3001) - /api routes                       │
 │                                                                   │
 │  ┌──────────────────────────────────────────────────────────┐   │
-│  │              API Routes                                   │   │
+│  │              Core API Routes                             │   │
 │  │  - POST /tests/batch                                     │   │
 │  │  - GET /projects/:id/dashboard                           │   │
 │  │  - GET /projects/:id/metrics                             │   │
 │  │  - GET /projects/:id/flaky-tests                         │   │
 │  │  - GET /projects/:id/performance-alerts                  │   │
+│  │  - GET /projects/:id/trends                              │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │          Browser & Test Run Routes (New)                 │   │
+│  │  - GET /projects/:id/browser-metrics                     │   │
+│  │  - GET /projects/:id/browser-trends                      │   │
+│  │  - GET /projects/:id/tests/browser/:browser              │   │
+│  │  - GET /projects/:id/test-runs                           │   │
+│  │  - GET /projects/:id/test-runs/:runId/tests              │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │                               │                                   │
 │  ┌──────────────────────────▼─────────────────────────────────┐  │
 │  │              Service Layer                                 │  │
-│  │  - TestService (metrics, aggregation)                     │  │
+│  │  - TestService (metrics, aggregation, browser, runs)     │  │
 │  │  - ProjectService (CRUD)                                  │  │
 │  └──────────────────────────────────────────────────────────┘   │
 └──────────────────────────────┬──────────────────────────────────┘
@@ -35,10 +45,21 @@ This document explains the architecture and design decisions of the Test Analyti
 ┌──────────────────────────────────────────────────────────────────┐
 │                    PostgreSQL Database                            │
 │                                                                   │
-│  ┌─────────────────┐  ┌──────────────────┐  ┌─────────────────┐ │
-│  │ test_results    │  │ daily_metrics    │  │ flaky_tests     │ │
-│  │ test_suites     │  │ performance_alerts   │ projects        │ │
-│  └─────────────────┘  └──────────────────┘  └─────────────────┘ │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │ test_results (with browser, os, environment fields)     │    │
+│  │ test_suites                                             │    │
+│  │ daily_metrics                                           │    │
+│  │ flaky_tests                                             │    │
+│  │ performance_alerts                                      │    │
+│  │ projects                                                │    │
+│  │ browser_metrics (new - aggregated by browser)           │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                                                                   │
+│  Indexes:                                                         │
+│  - idx_test_results_browser (for browser filtering)              │
+│  - idx_test_results_browser_status (for aggregations)            │
+│  - idx_test_results_project_browser (for dashboards)             │
+│  - idx_browser_metrics_project_date (for trends)                 │
 └──────────────────────────────────────────────────────────────────┘
 
 ┌──────────────────────────────────────────────────────────────────┐
@@ -47,6 +68,9 @@ This document explains the architecture and design decisions of the Test Analyti
 │  ┌──────────────────────────────────────────────────────────┐    │
 │  │  test-analytics-reporter                                │    │
 │  │  (Custom Playwright Reporter)                            │    │
+│  │  - Captures browser name from project config             │    │
+│  │  - Detects OS from browser type                          │    │
+│  │  - Groups tests by buildId or time windows               │    │
 │  └──────────────────────────────────────────────────────────┘    │
 │                               │ Batches test results                   │
 │                               ▼                                   │
@@ -74,19 +98,24 @@ TypeScript type definitions used across the entire project:
 ### Reporter Package (`test-analytics-reporter`)
 
 Custom Playwright reporter that:
-1. Hooks into test lifecycle (`onTestBegin`, `onTestEnd`, `onEnd`)
-2. Collects test execution metrics
-3. Batch sends results to backend API
-4. Extracts CI/CD environment variables
+1. Hooks into test lifecycle (`onBegin`, `onTestBegin`, `onTestEnd`, `onEnd`)
+2. **Captures browser name from Playwright's private _project property** (NEW)
+3. **Infers OS type from browser name** (NEW)
+4. Collects test execution metrics
+5. Groups tests by execution run
+6. Batch sends results to backend API
+7. Extracts CI/CD environment variables
 
 **Key features:**
+- Browser detection: chromium, firefox, webkit
 - Automatic retry detection
 - Flaky test identification
 - Configurable batch size (default: 50)
 - Non-blocking error handling
+- Environment variable extraction for CI/CD context
 
 **Why separate package?**
-- Can be published independently to npm
+- Can be published independently to npm as `@reporter/test-analytics-reporter`
 - Reusable across multiple projects
 - Clear separation of concerns
 - Easy versioning and updates
@@ -135,16 +164,23 @@ React dashboard with hooks for data fetching:
 App (Router)
 ├── Pages
 │   ├── Projects (list all)
-│   └── ProjectDetail (dashboard)
+│   └── ProjectDetail (comprehensive dashboard)
 ├── Components
-│   ├── MetricCard
-│   ├── FlakyTestsList
-│   ├── PerformanceAlerts
-│   └── Charts
+│   ├── MetricCard (basic metrics display)
+│   ├── FlakyTestsList (flaky test analysis)
+│   ├── PerformanceAlerts (performance regression alerts)
+│   ├── BrowserMetrics (new - browser-specific charts & tables)
+│   ├── TestRunsList (new - collapsible test run organization)
+│   └── Charts (TrendChart, DurationChart, MetricsOverviewChart)
 └── API
     ├── client.ts (axios instance)
-    └── hooks.ts (custom hooks)
+    └── hooks.ts (custom data-fetching hooks)
 ```
+
+**New Features:**
+- **Browser Analytics**: `BrowserMetricsChart`, `BrowserMetricsTable` components with separate metrics per browser
+- **Test Run Organization**: `TestRunsList` component with expandable runs showing test details on click
+- **New Hooks**: `useBrowserMetrics`, `useBrowserTrends`, `useTestRuns`, `useTestRunDetails`
 
 **Architecture decisions:**
 
@@ -159,9 +195,11 @@ App (Router)
 
 1. **Test Runs**
    ```
-   Playwright executes tests
+   Playwright executes tests (with browser config)
    ↓
-   Reporter captures results
+   Reporter captures results and browser name
+   ↓
+   Groups tests by run (buildId or time window)
    ↓
    Batches 50 results
    ↓
@@ -170,22 +208,52 @@ App (Router)
 
 2. **Backend Processing**
    ```
-   Receives batch of test results
+   Receives batch of test results with browser info
    ↓
-   Validates input
+   Validates input and extracts browser name
    ↓
    Stores in test_results table
+   ↓
+   Aggregates browser-specific metrics
    ↓
    Updates flaky_tests table
    ↓
    Updates daily_metrics table
+   ↓
+   Updates browser_metrics table (new)
    ↓
    Checks performance alerts
    ↓
    Returns success response
    ```
 
-3. **Dashboard Display**
+3. **Browser Metrics Aggregation**
+   ```
+   SELECT COUNT(*), SUM(CASE WHEN status='PASSED')
+   FROM test_results
+   WHERE project_id = $1 AND browser = $2
+   GROUP BY browser
+   ↓
+   Calculate pass_rate, avg_duration by browser
+   ↓
+   Store in browser_metrics table
+   ↓
+   Build trend data for charts
+   ```
+
+4. **Test Run Grouping**
+   ```
+   SELECT * FROM test_results
+   GROUP BY COALESCE(build_id, DATE_TRUNC('minute', created_at))
+   ↓
+   Aggregate run statistics (pass_rate, counts, duration)
+   ↓
+   Return run summaries via /test-runs endpoint
+   ↓
+   On expansion, fetch full test details for that run
+   ```
+
+5. **Dashboard Display**
    ```
    Frontend requests /api/projects/:id/dashboard
    ↓
@@ -195,7 +263,12 @@ App (Router)
    ↓
    Returns DashboardData object
    ↓
-   Frontend renders charts and tables
+   Parallel requests for browser metrics and test runs
+   ↓
+   Frontend renders:
+      - Core metrics & charts
+      - Browser-specific analytics
+      - Expandable test runs with details
    ```
 
 ## Database Design
@@ -211,11 +284,12 @@ App (Router)
 **Key Tables:**
 
 1. **projects** - Project metadata
-2. **test_results** - Raw test execution data
+2. **test_results** - Raw test execution data (includes browser, os, environment fields)
 3. **test_suites** - Grouped test runs
 4. **daily_metrics** - Pre-aggregated daily data
 5. **flaky_tests** - Flaky test tracking
 6. **performance_alerts** - Performance regression tracking
+7. **browser_metrics** - Pre-aggregated metrics by browser (NEW)
 
 **Indexing Strategy:**
 - Index on `project_id` for filtering

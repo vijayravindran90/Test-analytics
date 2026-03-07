@@ -5,12 +5,14 @@ A comprehensive test reporting and analytics dashboard for Playwright tests, sim
 ## Features
 
 - **Test Metrics Dashboard**: Real-time metrics including pass rate, failure rate, flakiness percentage, and stability score
+- **Browser-Specific Analytics**: Track test metrics across different browsers (Chromium, Firefox, WebKit) with separate dashboards and trend analysis
+- **Test Run Organization**: Tests grouped by execution runs (identified by buildId or time windows) with expandable details for each run
 - **Test Duration Tracking**: Monitor test execution times and identify performance regressions
 - **Flaky Test Detection**: Automatically identify and categorize flaky tests with trend analysis
 - **Performance Alerts**: Get notified when tests exceed performance thresholds
 - **Historical Trend Analysis**: Visualize test metrics over time with interactive charts
 - **Multi-Project Support**: Manage and compare metrics across multiple test projects
-- **CI/CD Integration**: Built-in support for GitHub Actions, GitLab CI, and Jenkins
+- **CI/CD Integration**: Built-in support for GitHub Actions, GitLab CI, and Jenkins with Playwright reporter
 - **Theme Toggle**: Switch between light and dark mode from the dashboard header
 - **Quick Documentation Access**: Header `Docs` link opens architecture documentation on GitHub
 - **Persistent Footer Links**: Footer includes repository shortcut and copyright attribution
@@ -171,7 +173,17 @@ Test results will be automatically sent to the analytics dashboard.
 - `GET /api/projects/:projectId/flaky-tests` - Get list of flaky tests
 - `GET /api/projects/:projectId/performance-alerts` - Get performance alerts
 - `GET /api/projects/:projectId/trends` - Get metrics trends over time
-- `GET /api/projects/:projectId/recent-tests` - Get recent test results
+
+### Browser Analytics (NEW)
+
+- `GET /api/projects/:projectId/browser-metrics` - Get aggregated metrics by browser
+- `GET /api/projects/:projectId/browser-trends` - Get browser performance trends over time
+- `GET /api/projects/:projectId/tests/browser/:browser` - Get tests filtered by browser
+
+### Test Runs (NEW)
+
+- `GET /api/projects/:projectId/test-runs` - Get list of test run executions
+- `GET /api/projects/:projectId/test-runs/:runId/tests` - Get tests in a specific run
 
 ## Dashboard Features
 

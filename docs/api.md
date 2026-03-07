@@ -350,21 +350,140 @@ GET /api/projects/:projectId/trends
 
 **Response:** Array of trend objects (see Dashboard response)
 
-### Get Recent Tests
+### Get Browser Metrics
 
-Get recently executed tests:
+Get aggregated metrics by browser:
 
 ```http
-GET /api/projects/:projectId/recent-tests
+GET /api/projects/:projectId/browser-metrics
+```
+
+**Parameters:**
+- `projectId` (path, required) - UUID of the project
+
+**Response:**
+```json
+[
+  {
+    "browser": "chromium",
+    "totalTests": 150,
+    "passedTests": 145,
+    "failedTests": 3,
+    "skippedTests": 2,
+    "avgDuration": 2500.50,
+    "totalDuration": 375075,
+    "passRate": 96.67
+  },
+  {
+    "browser": "firefox",
+    "totalTests": 150,
+    "passedTests": 142,
+    "failedTests": 5,
+    "skippedTests": 3,
+    "avgDuration": 2650.25,
+    "totalDuration": 397537,
+    "passRate": 94.67
+  }
+]
+```
+
+### Get Browser Trends
+
+Get browser metrics over time:
+
+```http
+GET /api/projects/:projectId/browser-trends
 ```
 
 **Parameters:**
 - `projectId` (path, required) - UUID of the project
 
 **Query Parameters:**
-- `limit` (optional, default: 20) - Maximum number of results
+- `days` (optional, default: 30) - Number of days to include
+
+**Response:**
+```json
+[
+  {
+    "date": "2024-03-07",
+    "browser": "chromium",
+    "totalTests": 50,
+    "passedTests": 48,
+    "failedTests": 2,
+    "passRate": 96.00
+  }
+]
+```
+
+### Get Tests by Browser
+
+Get test results filtered by browser:
+
+```http
+GET /api/projects/:projectId/tests/browser/:browser
+```
+
+**Parameters:**
+- `projectId` (path, required) - UUID of the project
+- `browser` (path, required) - Browser name (chromium, firefox, webkit)
+
+**Query Parameters:**
+- `limit` (optional, default: 50) - Maximum number of results
 
 **Response:** Array of test result objects
+
+---
+
+## Test Runs
+
+### Get Test Runs
+
+Get list of test run executions (grouped by buildId or time windows):
+
+```http
+GET /api/projects/:projectId/test-runs
+```
+
+**Parameters:**
+- `projectId` (path, required) - UUID of the project
+
+**Query Parameters:**
+- `limit` (optional, default: 20) - Maximum number of runs
+
+**Response:**
+```json
+[
+  {
+    "runId": "build-12345",
+    "startTime": "2024-03-07T10:30:00Z",
+    "endTime": "2024-03-07T10:45:00Z",
+    "totalTests": 50,
+    "passedTests": 48,
+    "failedTests": 2,
+    "skippedTests": 0,
+    "totalDuration": 900000,
+    "avgDuration": 18000,
+    "passRate": 96.00,
+    "branchName": "main",
+    "commitHash": "abc123def456",
+    "author": "developer@example.com"
+  }
+]
+```
+
+### Get Tests in Run
+
+Get all test results from a specific test run:
+
+```http
+GET /api/projects/:projectId/test-runs/:runId/tests
+```
+
+**Parameters:**
+- `projectId` (path, required) - UUID of the project
+- `runId` (path, required) - Test run ID (from test-runs endpoint)
+
+**Response:** Array of test result objects with full details
 
 ---
 

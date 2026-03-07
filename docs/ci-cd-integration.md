@@ -1,6 +1,6 @@
 # CI/CD Integration Guide
 
-Integrate the Test Analytics Dashboard with your CI/CD pipeline to automatically track test metrics.
+Integrate the Test Analytics Dashboard with your CI/CD pipeline to automatically track test metrics across multiple browsers and execution runs.
 
 ## GitHub Actions
 
@@ -38,7 +38,7 @@ Integrate the Test Analytics Dashboard with your CI/CD pipeline to automatically
          PROJECT_ID: ${{ secrets.PROJECT_ID }}
          PROJECT_NAME: Test Suite
          API_KEY: ${{ secrets.ANALYTICS_API_KEY }}
-         CI_BUILD_ID: ${{ github.run_id }}
+         CI_BUILD_ID: ${{ github.run_id }}         # Used to group test runs
          CI_COMMIT_SHA: ${{ github.sha }}
          CI_COMMIT_BRANCH: ${{ github.ref_name }}
          CI_COMMIT_AUTHOR: ${{ github.actor }}
@@ -54,10 +54,10 @@ Integrate the Test Analytics Dashboard with your CI/CD pipeline to automatically
          - name: Install dependencies
            run: npm ci
 
-         - name: Install Playwright
+         - name: Install Playwright (including browser dependencies)
            run: npx playwright install --with-deps
 
-         - name: Run tests
+         - name: Run tests (all configured browsers)
            run: npx playwright test
            continue-on-error: true
 
@@ -70,9 +70,27 @@ Integrate the Test Analytics Dashboard with your CI/CD pipeline to automatically
              retention-days: 30
    ```
 
-3. **Push and Trigger**
+3. **Browser Testing**
 
-   Push the changes to trigger the workflow. Test results will automatically be reported.
+   The dashboard automatically captures which browser each test ran on if configured in `playwright.config.ts`:
+
+   ```typescript
+   projects: [
+     { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+     { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+     { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+   ]
+   ```
+
+   View browser-specific metrics in the dashboard under "Browser Performance Summary".
+
+4. **Push and Trigger**
+
+   Push the changes to trigger the workflow. Test results will automatically be reported and grouped by:
+   - **Build ID** (GitHub run ID for correlation)
+   - **Branch name** (for filtering by branch)
+   - **Commit hash** (for tracking changes)
+   - **Browser** (for analyzing cross-browser behavior)
 
 ## GitLab CI
 
