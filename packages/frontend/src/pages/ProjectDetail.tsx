@@ -200,7 +200,7 @@ export default function ProjectDetail() {
       )}
 
       {/* Test Runs */}
-      <TestRunsList projectId={projectId} runs={testRuns} loading={runsLoading} />
+      <TestRunsList projectId={projectId} runs={testRuns} loading={runsLoading} projectName={project?.name} />
     </div>
   );
 }
