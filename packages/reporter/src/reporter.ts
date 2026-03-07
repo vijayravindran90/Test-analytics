@@ -85,13 +85,16 @@ class PlaywrightAnalyticsReporter implements Reporter {
           // Keep payload size bounded; large traces can still be opened locally.
           if (stat.size <= 8 * 1024 * 1024) {
             traceDataBase64 = fs.readFileSync(traceAttachment.path).toString('base64');
+            console.log(`[Analytics] Captured trace file (${Math.round(stat.size / 1024)} KB) for test: ${test.title}`);
           } else {
-            console.warn(`[Analytics] Trace too large to upload (${stat.size} bytes): ${traceAttachment.path}`);
+            console.warn(`[Analytics] Trace too large to upload (${Math.round(stat.size / 1024)} KB): ${traceAttachment.path}`);
           }
         } catch (traceReadError) {
           console.warn(`[Analytics] Could not read trace file: ${traceAttachment.path}`, traceReadError);
         }
       }
+    } else if (result.status === 'failed' && this.config.enabled) {
+      console.log(`[Analytics] No trace attachment found for failed test: ${test.title}. Enable traces in playwright.config.ts with: trace: 'retain-on-failure'`);
     }
 
     const testAnalyticsResult: AnalyticsTestResult = {

@@ -2,6 +2,16 @@
 
 A Playwright test reporter that sends test results to the Test Analytics Dashboard.
 
+## Features
+
+- 📊 **Real-time Test Metrics** - Track pass rate, failure rate, flakiness, and performance
+- 🔍 **Trace Viewer Integration** - Upload and view Playwright traces directly in the hosted viewer
+- 🌐 **Browser Tracking** - Automatic detection and tracking of Chromium, Firefox, and Safari
+- 📈 **Historical Analysis** - Track test trends and stability over time
+- 🔄 **Flaky Test Detection** - Identify and monitor tests with inconsistent behavior
+- ⚡ **Performance Alerts** - Get notified of slow tests and performance regressions
+- 🔧 **CI/CD Ready** - Seamless integration with GitHub Actions and other CI systems
+
 ## Installation
 
 ```bash
@@ -32,6 +42,10 @@ export default defineConfig({
   ],
   use: {
     baseURL: 'http://localhost:3000',
+    // Enable trace collection for failed tests (required for trace viewer integration)
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
   },
 });
 ```
@@ -56,6 +70,28 @@ export default defineConfig({
   enabled?: boolean;       // Enable/disable reporter (default: true)
 }
 ```
+
+### Trace File Support
+
+The reporter automatically uploads Playwright trace files (up to 8MB) for failed tests, allowing you to view them directly in the hosted [Playwright Trace Viewer](https://trace.playwright.dev).
+
+**Important:** To enable trace collection, add this to your `playwright.config.ts`:
+
+```typescript
+use: {
+  trace: 'retain-on-failure', // Captures trace files for failed tests
+  screenshot: 'only-on-failure',
+  video: 'retain-on-failure',
+}
+```
+
+**Trace Options:**
+- `retain-on-failure` - Only capture traces for failed tests (recommended)
+- `on` - Capture traces for all tests (increases storage)
+- `on-first-retry` - Only capture on retry attempts
+- `off` - Disable trace collection
+
+Once configured, failed tests in the dashboard will have a "View Trace" button that opens the interactive trace viewer.
 
 ## How It Works
 
