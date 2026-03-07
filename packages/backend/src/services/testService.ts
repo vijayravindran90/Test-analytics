@@ -24,6 +24,8 @@ interface TestResult {
   author?: string;
   traceUrl?: string;
   tracePath?: string;
+  traceDataBase64?: string;
+  traceFileName?: string;
 }
 
 interface FlakyTest {
@@ -135,6 +137,23 @@ export class TestService {
             );
           } else {
             throw insertError;
+          }
+        }
+
+        if (result.traceDataBase64) {
+          try {
+            await client.query(
+              `INSERT INTO trace_files (id, test_result_id, file_name, content_base64)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT (test_result_id)
+               DO UPDATE SET file_name = EXCLUDED.file_name, content_base64 = EXCLUDED.content_base64`,
+              [uuidv4(), result.id, result.traceFileName || 'trace.zip', result.traceDataBase64]
+            );
+          } catch (traceStoreError: any) {
+            // If migration not applied yet, skip storing trace blobs without failing ingestion.
+            if (!traceStoreError.message?.includes('relation "trace_files" does not exist')) {
+              throw traceStoreError;
+            }
           }
         }
       }
@@ -617,6 +636,30 @@ export class TestService {
     const result = await pool.query(query, [projectId, runId]);
 
     return result.rows.map((row: any) => this.mapRowToTestResult(row));
+  }
+
+  async getTraceFileByTestResultId(testResultId: string): Promise<{ fileName: string; contentBase64: string } | null> {
+    let result;
+    try {
+      result = await pool.query(
+        `SELECT file_name, content_base64 FROM trace_files WHERE test_result_id = $1 LIMIT 1`,
+        [testResultId]
+      );
+    } catch (error: any) {
+      if (error.message?.includes('relation "trace_files" does not exist')) {
+        return null;
+      }
+      throw error;
+    }
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return {
+      fileName: result.rows[0].file_name || 'trace.zip',
+      contentBase64: result.rows[0].content_base64,
+    };
   }
 
   private mapRowToTestResult(row: any): TestResult {

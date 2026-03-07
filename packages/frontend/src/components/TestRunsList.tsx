@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Eye } from 'lucide-react';
 import { useTestRunDetails } from '../api/hooks';
+import apiClient from '../api/client';
 import { formatDuration, formatPercent } from '../utils/format';
 import type { TestResult } from 'test-analytics-shared';
 
@@ -36,6 +37,13 @@ export function TestRunsList({ projectId, projectName = 'Project', runs, loading
     acc[run.runId] = `${projectName} ${runs.length - index}`;
     return acc;
   }, {});
+
+  const openTraceViewer = (testResultId: string) => {
+    const base = (apiClient.defaults.baseURL || '').replace(/\/+$/, '');
+    const traceDownloadUrl = `${base}/traces/${encodeURIComponent(testResultId)}/download`;
+    const viewerUrl = `https://trace.playwright.dev/?trace=${encodeURIComponent(traceDownloadUrl)}`;
+    window.open(viewerUrl, '_blank', 'noopener,noreferrer');
+  };
 
   if (loading) {
     return (
@@ -198,12 +206,7 @@ export function TestRunsList({ projectId, projectName = 'Project', runs, loading
                                         <button
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            if (test.tracePath) {
-                                              // Show alert with instructions for local traces
-                                              alert(`To view this trace locally, run:\nnpx playwright show-trace ${test.tracePath}`);
-                                            } else if (test.traceUrl) {
-                                              window.open(test.traceUrl, '_blank');
-                                            }
+                                            openTraceViewer(test.id);
                                           }}
                                           className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition"
                                           title="View trace"

@@ -22,6 +22,8 @@ export interface TestResult {
   author?: string;
   traceUrl?: string; // URL to Playwright trace file
   tracePath?: string; // Local path to trace file
+  traceDataBase64?: string; // Base64 encoded trace zip (optional, for hosted viewing)
+  traceFileName?: string; // Original trace zip file name
 }
 
 export interface TestSuite {

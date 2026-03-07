@@ -26,6 +26,8 @@ interface TestResult {
   author?: string;
   traceUrl?: string;
   tracePath?: string;
+  traceDataBase64?: string;
+  traceFileName?: string;
 }
 
 interface DashboardData {
@@ -93,6 +95,8 @@ router.post('/tests/batch', async (req: Request, res: Response) => {
         author: result.author,
         traceUrl: result.traceUrl,
         tracePath: result.tracePath,
+        traceDataBase64: result.traceDataBase64,
+        traceFileName: result.traceFileName,
       };
     });
 
@@ -279,6 +283,26 @@ router.get('/projects/:projectId/test-runs/:runId/tests', async (req: Request, r
   } catch (error) {
     console.error('Error fetching tests in run:', error);
     res.status(500).json({ error: 'Failed to fetch tests in run' });
+  }
+});
+
+// Serve stored trace zip for a test result
+router.get('/traces/:testResultId/download', async (req: Request, res: Response) => {
+  try {
+    const { testResultId } = req.params;
+    const trace = await testService.getTraceFileByTestResultId(testResultId);
+
+    if (!trace) {
+      return res.status(404).json({ error: 'Trace not found' });
+    }
+
+    const buffer = Buffer.from(trace.contentBase64, 'base64');
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `inline; filename="${trace.fileName}"`);
+    res.send(buffer);
+  } catch (error) {
+    console.error('Error serving trace file:', error);
+    res.status(500).json({ error: 'Failed to serve trace file' });
   }
 });
 

@@ -1,6 +1,8 @@
 import { Reporter, TestCase, TestResult, FullConfig } from '@playwright/test/reporter';
 import axios from 'axios';
 import { v4 as uuidv4 } from 'uuid';
+import fs from 'fs';
+import path from 'path';
 import type { TestResult as AnalyticsTestResult, TestSuite } from 'test-analytics-shared';
 
 interface ReporterConfig {
@@ -68,12 +70,27 @@ class PlaywrightAnalyticsReporter implements Reporter {
 
     // Extract trace file path from attachments (for failed tests)
     let tracePath: string | undefined;
+    let traceDataBase64: string | undefined;
+    let traceFileName: string | undefined;
     if (result.attachments && result.attachments.length > 0) {
       const traceAttachment = result.attachments.find(
         (a) => a.name === 'trace' && a.path
       );
       if (traceAttachment?.path) {
         tracePath = traceAttachment.path;
+        traceFileName = path.basename(traceAttachment.path);
+
+        try {
+          const stat = fs.statSync(traceAttachment.path);
+          // Keep payload size bounded; large traces can still be opened locally.
+          if (stat.size <= 8 * 1024 * 1024) {
+            traceDataBase64 = fs.readFileSync(traceAttachment.path).toString('base64');
+          } else {
+            console.warn(`[Analytics] Trace too large to upload (${stat.size} bytes): ${traceAttachment.path}`);
+          }
+        } catch (traceReadError) {
+          console.warn(`[Analytics] Could not read trace file: ${traceAttachment.path}`, traceReadError);
+        }
       }
     }
 
@@ -99,6 +116,8 @@ class PlaywrightAnalyticsReporter implements Reporter {
       commitHash: process.env.CI_COMMIT_SHA || process.env.GITHUB_SHA,
       author: process.env.CI_COMMIT_AUTHOR || process.env.GITHUB_ACTOR,
       tracePath,
+      traceDataBase64,
+      traceFileName,
     };
 
     this.testResults.push(testAnalyticsResult);
