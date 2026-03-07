@@ -194,7 +194,8 @@ export class TestService {
         const totalRuns = prevRow.total_runs + 1;
         const passedRuns = testsPassed ? prevRow.passed_runs + 1 : prevRow.passed_runs;
         const failedRuns = testsPassed ? prevRow.failed_runs : prevRow.failed_runs + 1;
-        const flakinessPercentage = (prevRow.passed_runs - passedRuns) / (totalRuns || 1) * 100;
+        // Flakiness = percentage of runs that failed (for tests with inconsistent behavior)
+        const flakinessPercentage = (failedRuns / totalRuns) * 100;
 
         // Determine trend
         const prevFlakiness = prevRow.flakiness_percentage;
@@ -271,7 +272,8 @@ export class TestService {
 
     const flakinessPercentage =
       (parseInt(flakyTestsResult.rows[0].flaky_count) / totalTests) * 100 || 0;
-    const stability = 100 - flakinessPercentage;
+    // Stability should reflect test reliability - use pass rate
+    const stability = passRate;
 
     await client.query(
       `INSERT INTO daily_metrics 
@@ -366,18 +368,19 @@ export class TestService {
     );
 
     const flakinessPercentage = (parseInt(flakyTestsResult.rows[0].flaky_count) / totalTests) * 100 || 0;
+    const passRate = (passedTests / totalTests) * 100 || 0;
 
     return {
       totalTests,
       passedTests,
       failedTests,
       skippedTests: parseInt(row.skipped_tests) || 0,
-      passRate: (passedTests / totalTests) * 100 || 0,
+      passRate,
       avgDuration: parseFloat(row.avg_duration) || 0,
       totalDuration: parseInt(row.total_duration) || 0,
       flakinessPercentage,
       failureRate: (failedTests / totalTests) * 100 || 0,
-      stability: 100 - flakinessPercentage,
+      stability: passRate, // Stability = pass rate (test reliability)
     };
   }
 
