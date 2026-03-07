@@ -513,6 +513,101 @@ export class TestService {
       passRate: parseFloat(row.pass_rate) || 0,
     }));
   }
+
+  async getTestRuns(projectId: string, limit: number = 20): Promise<any[]> {
+    // Group tests by build_id or creation time window (5 minutes)
+    const result = await pool.query(
+      `WITH test_runs AS (
+        SELECT 
+          COALESCE(build_id, DATE_TRUNC('minute', created_at)::text || '-' || ROW_NUMBER() OVER (PARTITION BY DATE_TRUNC('minute', created_at) ORDER BY created_at)) as run_id,
+          MIN(created_at) as run_start_time,
+          MAX(created_at) as run_end_time,
+          COUNT(*) as total_tests,
+          SUM(CASE WHEN status = 'PASSED' THEN 1 ELSE 0 END) as passed_tests,
+          SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) as failed_tests,
+          SUM(CASE WHEN status = 'SKIPPED' THEN 1 ELSE 0 END) as skipped_tests,
+          SUM(duration) as total_duration,
+          ROUND(AVG(duration)::numeric, 2) as avg_duration,
+          ROUND((SUM(CASE WHEN status = 'PASSED' THEN 1 ELSE 0 END)::numeric / COUNT(*)::numeric * 100)::numeric, 2) as pass_rate,
+          branch_name,
+          commit_hash,
+          author
+        FROM test_results
+        WHERE project_id = $1
+        GROUP BY COALESCE(build_id, DATE_TRUNC('minute', created_at)::text), branch_name, commit_hash, author
+      )
+      SELECT * FROM test_runs
+      ORDER BY run_start_time DESC
+      LIMIT $2`,
+      [projectId, limit]
+    );
+
+    return result.rows.map((row: any) => ({
+      runId: row.run_id,
+      startTime: row.run_start_time,
+      endTime: row.run_end_time,
+      totalTests: parseInt(row.total_tests) || 0,
+      passedTests: parseInt(row.passed_tests) || 0,
+      failedTests: parseInt(row.failed_tests) || 0,
+      skippedTests: parseInt(row.skipped_tests) || 0,
+      totalDuration: parseInt(row.total_duration) || 0,
+      avgDuration: parseFloat(row.avg_duration) || 0,
+      passRate: parseFloat(row.pass_rate) || 0,
+      branchName: row.branch_name,
+      commitHash: row.commit_hash,
+      author: row.author,
+    }));
+  }
+
+  async getTestsByRun(projectId: string, runId: string): Promise<TestResult[]> {
+    // Get all tests from a specific run
+    // First check if it's a build_id or a time-based run_id
+    const result = await pool.query(
+      `SELECT * FROM test_results 
+       WHERE project_id = $1 AND (build_id = $2 OR (DATE_TRUNC('minute', created_at)::text || '-' || ROW_NUMBER() OVER (PARTITION BY DATE_TRUNC('minute', created_at) ORDER BY created_at))::text = $2)
+       ORDER BY created_at DESC`,
+      [projectId, runId]
+    );
+
+    if (result.rows.length === 0) {
+      // Try with time-based matching for the run_id
+      const timeResults = await pool.query(
+        `SELECT * FROM test_results 
+         WHERE project_id = $1 AND created_at >= NOW() - INTERVAL '10 minutes'
+         ORDER BY created_at DESC
+         LIMIT 50`,
+        [projectId]
+      );
+      return timeResults.rows.map((row: any) => this.mapRowToTestResult(row));
+    }
+
+    return result.rows.map((row: any) => this.mapRowToTestResult(row));
+  }
+
+  private mapRowToTestResult(row: any): TestResult {
+    return {
+      id: row.id,
+      projectId: row.project_id,
+      projectName: row.project_name,
+      testId: row.test_id,
+      testName: row.test_name,
+      status: row.status,
+      duration: row.duration,
+      retries: row.retries,
+      flakyAttempts: row.flaky_attempts,
+      startTime: row.start_time,
+      endTime: row.end_time,
+      error: row.error,
+      tags: row.tags,
+      browser: row.browser,
+      os: row.os,
+      environment: row.environment,
+      buildId: row.build_id,
+      commitHash: row.commit_hash,
+      branchName: row.branch_name,
+      author: row.author,
+    };
+  }
 }
 
 export default new TestService();

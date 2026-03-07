@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
-import { useDashboardData, useProject, useBrowserMetrics, useBrowserTrends } from '../api/hooks';
+import { useDashboardData, useProject, useBrowserMetrics, useBrowserTrends, useTestRuns } from '../api/hooks';
 import MetricCard from '../components/MetricCard';
 import FlakyTestsList from '../components/FlakyTestsList';
 import PerformanceAlerts from '../components/PerformanceAlerts';
 import { TrendChart, DurationChart, MetricsOverviewChart } from '../components/Charts';
 import { BrowserMetricsTable, BrowserMetricsChart } from '../components/BrowserMetrics';
+import { TestRunsList } from '../components/TestRunsList';
 import { formatDuration, formatPercent } from '../utils/format';
 import type { TestResult } from 'test-analytics-shared';
 
@@ -23,6 +24,7 @@ export default function ProjectDetail() {
   const { data: dashboardData, loading: dataLoading, error } = useDashboardData(projectId, days);
   const { metrics: browserMetrics, loading: browserLoading } = useBrowserMetrics(projectId);
   const { trends: browserTrends } = useBrowserTrends(projectId, days);
+  const { runs: testRuns, loading: runsLoading } = useTestRuns(projectId, 20);
 
   if (projectLoading || dataLoading) {
     return (
@@ -197,73 +199,8 @@ export default function ProjectDetail() {
         <BrowserMetricsTable metrics={browserMetrics} title="Browser Performance Summary" />
       )}
 
-      {/* Recent Tests */}
-      <div className="card">
-        <div className="p-6 border-b">
-          <h3 className="text-lg font-semibold">Recent Tests</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b bg-neutral-50">
-                <th className="px-6 py-3 text-left text-sm font-medium text-neutral-600">
-                  Test
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-neutral-600">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-neutral-600">
-                  Browser
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-neutral-600">
-                  Duration
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-neutral-600">
-                  Retries
-                </th>
-                <th className="px-6 py-3 text-left text-sm font-medium text-neutral-600">
-                  Branch
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentTests.slice(0, 10).map((test: TestResult) => (
-                <tr key={test.id} className="border-b hover:bg-neutral-50">
-                  <td className="px-6 py-3 text-sm">
-                    <p className="font-medium text-neutral-900">{test.testName}</p>
-                    <p className="text-xs text-neutral-500">{test.testId}</p>
-                  </td>
-                  <td className="px-6 py-3 text-sm">
-                    <span
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        test.status === 'PASSED'
-                          ? 'bg-success-50 text-success-700'
-                          : test.status === 'FAILED'
-                          ? 'bg-danger-50 text-danger-700'
-                          : 'bg-neutral-50 text-neutral-700'
-                      }`}
-                    >
-                      {test.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-3 text-sm text-neutral-900">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                      {test.browser || 'unknown'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-3 text-sm text-neutral-900">
-                    {formatDuration(test.duration)}
-                  </td>
-                  <td className="px-6 py-3 text-sm text-neutral-900">{test.retries}</td>
-                  <td className="px-6 py-3 text-sm text-neutral-600">
-                    {test.branchName || '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Test Runs */}
+      <TestRunsList projectId={projectId} runs={testRuns} loading={runsLoading} />
     </div>
   );
 }

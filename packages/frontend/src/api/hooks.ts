@@ -194,3 +194,53 @@ export function useBrowserTrends(projectId: string, days: number = 30) {
   return { trends, loading, error };
 }
 
+export function useTestRuns(projectId: string, limit: number = 20) {
+  const [runs, setRuns] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchRuns = async () => {
+      try {
+        setLoading(true);
+        const response = await apiClient.get(`/projects/${projectId}/test-runs?limit=${limit}`);
+        setRuns(response.data);
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch test runs');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRuns();
+  }, [projectId, limit]);
+
+  return { runs, loading, error };
+}
+
+export function useTestRunDetails(projectId: string, runId: string | null) {
+  const [tests, setTests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!runId) return;
+
+    const fetchTests = async () => {
+      try {
+        setLoading(true);
+        const response = await apiClient.get(`/projects/${projectId}/test-runs/${encodeURIComponent(runId)}/tests`);
+        setTests(response.data);
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch test run details');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchTests();
+  }, [projectId, runId]);
+
+  return { tests, loading, error };
+}
+

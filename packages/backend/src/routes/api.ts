@@ -250,6 +250,33 @@ router.get('/projects/:projectId/browser-trends', async (req: Request, res: Resp
   }
 });
 
+// Get test runs (grouped executions)
+router.get('/projects/:projectId/test-runs', async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+    const { limit = 20 } = req.query;
+
+    const runs = await testService.getTestRuns(projectId, parseInt(limit as string));
+    res.json(runs);
+  } catch (error) {
+    console.error('Error fetching test runs:', error);
+    res.status(500).json({ error: 'Failed to fetch test runs' });
+  }
+});
+
+// Get tests in a specific run
+router.get('/projects/:projectId/test-runs/:runId/tests', async (req: Request, res: Response) => {
+  try {
+    const { projectId, runId } = req.params;
+
+    const tests = await testService.getTestsByRun(projectId, decodeURIComponent(runId));
+    res.json(tests);
+  } catch (error) {
+    console.error('Error fetching tests in run:', error);
+    res.status(500).json({ error: 'Failed to fetch tests in run' });
+  }
+});
+
 // Projects CRUD
 router.post('/projects', async (req: Request, res: Response) => {
   try {
