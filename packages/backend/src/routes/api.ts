@@ -305,8 +305,15 @@ router.get('/traces/:testResultId/download', async (req: Request, res: Response)
     }
 
     const buffer = Buffer.from(trace.contentBase64, 'base64');
+    
+    // Set headers for trace file serving
     res.setHeader('Content-Type', 'application/zip');
     res.setHeader('Content-Disposition', `inline; filename="${trace.fileName}"`);
+    res.setHeader('Content-Length', buffer.length.toString());
+    res.setHeader('Access-Control-Allow-Origin', '*'); // Allow trace.playwright.dev to fetch
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+    
     res.send(buffer);
   } catch (error) {
     console.error('Error serving trace file:', error);

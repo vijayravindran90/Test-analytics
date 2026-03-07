@@ -16,7 +16,8 @@ app.use(cors({
   origin: process.env.FRONTEND_URL || [
     'http://localhost:3000',
     'http://localhost:3002',
-    'https://vijayravindran90.github.io'
+    'https://vijayravindran90.github.io',
+    'https://trace.playwright.dev'
   ],
   credentials: true,
 }));
