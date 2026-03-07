@@ -20,6 +20,8 @@ export interface TestResult {
   commitHash?: string;
   branchName?: string;
   author?: string;
+  traceUrl?: string; // URL to Playwright trace file
+  tracePath?: string; // Local path to trace file
 }
 
 export interface TestSuite {

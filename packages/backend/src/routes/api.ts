@@ -24,6 +24,8 @@ interface TestResult {
   commitHash?: string;
   branchName?: string;
   author?: string;
+  traceUrl?: string;
+  tracePath?: string;
 }
 
 interface DashboardData {
@@ -89,6 +91,8 @@ router.post('/tests/batch', async (req: Request, res: Response) => {
         commitHash: result.commitHash,
         branchName: result.branchName,
         author: result.author,
+        traceUrl: result.traceUrl,
+        tracePath: result.tracePath,
       };
     });
 

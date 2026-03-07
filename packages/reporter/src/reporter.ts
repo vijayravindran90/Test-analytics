@@ -66,6 +66,17 @@ class PlaywrightAnalyticsReporter implements Reporter {
     const projectConfig = (test.parent as any)?._project;
     let browserName = projectConfig?.name || 'unknown';
 
+    // Extract trace file path from attachments (for failed tests)
+    let tracePath: string | undefined;
+    if (result.attachments && result.attachments.length > 0) {
+      const traceAttachment = result.attachments.find(
+        (a) => a.name === 'trace' && a.path
+      );
+      if (traceAttachment?.path) {
+        tracePath = traceAttachment.path;
+      }
+    }
+
     const testAnalyticsResult: AnalyticsTestResult = {
       id: uuidv4(),
       projectId: this.config.projectId,
@@ -87,6 +98,7 @@ class PlaywrightAnalyticsReporter implements Reporter {
       branchName: process.env.CI_COMMIT_BRANCH || process.env.GITHUB_REF_NAME || 'unknown',
       commitHash: process.env.CI_COMMIT_SHA || process.env.GITHUB_SHA,
       author: process.env.CI_COMMIT_AUTHOR || process.env.GITHUB_ACTOR,
+      tracePath,
     };
 
     this.testResults.push(testAnalyticsResult);

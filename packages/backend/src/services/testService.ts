@@ -22,6 +22,8 @@ interface TestResult {
   commitHash?: string;
   branchName?: string;
   author?: string;
+  traceUrl?: string;
+  tracePath?: string;
 }
 
 interface FlakyTest {
@@ -70,8 +72,8 @@ export class TestService {
         await client.query(
           `INSERT INTO test_results 
            (id, project_id, project_name, test_id, test_name, status, duration, retries, flaky_attempts, 
-            start_time, end_time, error, tags, browser, os, environment, build_id, commit_hash, branch_name, author)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+            start_time, end_time, error, tags, browser, os, environment, build_id, commit_hash, branch_name, author, trace_url, trace_path)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
           [
             result.id,
             result.projectId,
@@ -93,6 +95,8 @@ export class TestService {
             result.commitHash,
             result.branchName,
             result.author,
+            result.traceUrl,
+            result.tracePath,
           ]
         );
       }
@@ -422,6 +426,8 @@ export class TestService {
       commitHash: row.commit_hash,
       branchName: row.branch_name,
       author: row.author,
+      traceUrl: row.trace_url,
+      tracePath: row.trace_path,
     }));
   }
 
@@ -485,6 +491,8 @@ export class TestService {
       commitHash: row.commit_hash,
       branchName: row.branch_name,
       author: row.author,
+      traceUrl: row.trace_url,
+      tracePath: row.trace_path,
     }));
   }
 

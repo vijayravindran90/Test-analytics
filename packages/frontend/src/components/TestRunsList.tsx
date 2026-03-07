@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Eye } from 'lucide-react';
 import { useTestRunDetails } from '../api/hooks';
 import { formatDuration, formatPercent } from '../utils/format';
 import type { TestResult } from 'test-analytics-shared';
@@ -156,6 +156,9 @@ export function TestRunsList({ projectId, projectName = 'Project', runs, loading
                                   <th className="px-6 py-3 text-left text-sm font-medium text-neutral-700">
                                     Retries
                                   </th>
+                                  <th className="px-6 py-3 text-left text-sm font-medium text-neutral-700">
+                                    Trace
+                                  </th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -197,6 +200,28 @@ export function TestRunsList({ projectId, projectName = 'Project', runs, loading
                                     </td>
                                     <td className="px-6 py-3 text-sm text-neutral-900">
                                       {test.retries}
+                                    </td>
+                                    <td className="px-6 py-3 text-sm">
+                                      {test.status === 'FAILED' && (test.traceUrl || test.tracePath) ? (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            if (test.tracePath) {
+                                              // Show alert with instructions for local traces
+                                              alert(`To view this trace locally, run:\nnpx playwright show-trace ${test.tracePath}`);
+                                            } else if (test.traceUrl) {
+                                              window.open(test.traceUrl, '_blank');
+                                            }
+                                          }}
+                                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition"
+                                          title="View trace"
+                                        >
+                                          <Eye className="w-3 h-3" />
+                                          View Trace
+                                        </button>
+                                      ) : (
+                                        <span className="text-xs text-neutral-400">—</span>
+                                      )}
                                     </td>
                                   </tr>
                                 ))}
