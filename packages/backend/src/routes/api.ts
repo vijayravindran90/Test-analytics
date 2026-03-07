@@ -419,45 +419,63 @@ router.delete('/projects/:projectId', async (req: Request, res: Response) => {
 router.post('/admin/migrate', async (req: Request, res: Response) => {
   try {
     const { adminKey } = req.body;
-    
+
     // Simple admin key check (in production, use proper authentication)
     if (adminKey !== process.env.ADMIN_KEY && adminKey !== 'migrate-db-schema') {
       return res.status(403).json({ error: 'Unauthorized' });
     }
-    
-    // Check if trace columns exist
-    const columnCheck = await pool.query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'test_results' 
-      AND column_name IN ('trace_url', 'trace_path')
-    `);
-    
-    if (columnCheck.rows.length === 2) {
-      return res.json({ 
-        success: true, 
+
+    const [columnCheck, tableCheck] = await Promise.all([
+      pool.query(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = 'test_results'
+        AND column_name IN ('trace_url', 'trace_path')
+      `),
+      pool.query(`
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'trace_files'
+      `),
+    ]);
+
+    if (columnCheck.rows.length === 2 && tableCheck.rows.length === 1) {
+      return res.json({
+        success: true,
         message: 'Migrations already applied',
-        columns: columnCheck.rows.map(r => r.column_name)
+        columns: columnCheck.rows.map((r) => r.column_name),
+        tables: tableCheck.rows.map((r) => r.table_name),
       });
     }
-    
-    // Run migration
+
     await pool.query('BEGIN');
-    
+
     try {
       await pool.query(`
         ALTER TABLE test_results ADD COLUMN IF NOT EXISTS trace_url TEXT;
         ALTER TABLE test_results ADD COLUMN IF NOT EXISTS trace_path TEXT;
+
         CREATE INDEX IF NOT EXISTS idx_test_results_status_trace ON test_results(status, trace_url) WHERE trace_url IS NOT NULL;
         CREATE INDEX IF NOT EXISTS idx_test_results_failed_with_trace ON test_results(project_id, status) WHERE status = 'FAILED' AND trace_url IS NOT NULL;
+
+        CREATE TABLE IF NOT EXISTS trace_files (
+          id UUID PRIMARY KEY,
+          test_result_id UUID NOT NULL REFERENCES test_results(id) ON DELETE CASCADE,
+          file_name VARCHAR(255),
+          content_base64 TEXT NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(test_result_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_trace_files_test_result_id ON trace_files(test_result_id);
       `);
-      
+
       await pool.query('COMMIT');
-      
-      res.json({ 
-        success: true, 
+
+      res.json({
+        success: true,
         message: 'Migrations applied successfully',
-        applied: ['trace_url column', 'trace_path column', 'trace indexes']
+        applied: ['trace_url column', 'trace_path column', 'trace indexes', 'trace_files table'],
       });
     } catch (error) {
       await pool.query('ROLLBACK');
