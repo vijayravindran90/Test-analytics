@@ -391,4 +391,58 @@ router.delete('/projects/:projectId', async (req: Request, res: Response) => {
   }
 });
 
+// Run database migrations
+router.post('/admin/migrate', async (req: Request, res: Response) => {
+  try {
+    const { adminKey } = req.body;
+    
+    // Simple admin key check (in production, use proper authentication)
+    if (adminKey !== process.env.ADMIN_KEY && adminKey !== 'migrate-db-schema') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+    
+    // Check if trace columns exist
+    const columnCheck = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'test_results' 
+      AND column_name IN ('trace_url', 'trace_path')
+    `);
+    
+    if (columnCheck.rows.length === 2) {
+      return res.json({ 
+        success: true, 
+        message: 'Migrations already applied',
+        columns: columnCheck.rows.map(r => r.column_name)
+      });
+    }
+    
+    // Run migration
+    await pool.query('BEGIN');
+    
+    try {
+      await pool.query(`
+        ALTER TABLE test_results ADD COLUMN IF NOT EXISTS trace_url TEXT;
+        ALTER TABLE test_results ADD COLUMN IF NOT EXISTS trace_path TEXT;
+        CREATE INDEX IF NOT EXISTS idx_test_results_status_trace ON test_results(status, trace_url) WHERE trace_url IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS idx_test_results_failed_with_trace ON test_results(project_id, status) WHERE status = 'FAILED' AND trace_url IS NOT NULL;
+      `);
+      
+      await pool.query('COMMIT');
+      
+      res.json({ 
+        success: true, 
+        message: 'Migrations applied successfully',
+        applied: ['trace_url column', 'trace_path column', 'trace indexes']
+      });
+    } catch (error) {
+      await pool.query('ROLLBACK');
+      throw error;
+    }
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ error: 'Failed to run migrations' });
+  }
+});
+
 export default router;

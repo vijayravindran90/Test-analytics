@@ -6,7 +6,8 @@
     "dev": "ts-node src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "db:migrate": "node scripts/migrate.js"
+    "db:migrate": "ts-node src/scripts/run-migrations.ts",
+    "db:migrate:prod": "node dist/scripts/run-migrations.js"
   },
   "dependencies": {
     "axios": "^1.6.0",

@@ -69,36 +69,74 @@ export class TestService {
       await client.query('BEGIN');
 
       for (const result of results) {
-        await client.query(
-          `INSERT INTO test_results 
-           (id, project_id, project_name, test_id, test_name, status, duration, retries, flaky_attempts, 
-            start_time, end_time, error, tags, browser, os, environment, build_id, commit_hash, branch_name, author, trace_url, trace_path)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
-          [
-            result.id,
-            result.projectId,
-            result.projectName,
-            result.testId,
-            result.testName,
-            result.status,
-            result.duration,
-            result.retries,
-            result.flakyAttempts,
-            result.startTime,
-            result.endTime,
-            result.error,
-            result.tags || [],
-            result.browser,
-            result.os,
-            result.environment,
-            result.buildId,
-            result.commitHash,
-            result.branchName,
-            result.author,
-            result.traceUrl,
-            result.tracePath,
-          ]
-        );
+        // Check if trace columns exist by trying to insert with them first
+        // If they don't exist, fall back to insert without them
+        try {
+          await client.query(
+            `INSERT INTO test_results 
+             (id, project_id, project_name, test_id, test_name, status, duration, retries, flaky_attempts, 
+              start_time, end_time, error, tags, browser, os, environment, build_id, commit_hash, branch_name, author, trace_url, trace_path)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)`,
+            [
+              result.id,
+              result.projectId,
+              result.projectName,
+              result.testId,
+              result.testName,
+              result.status,
+              result.duration,
+              result.retries,
+              result.flakyAttempts,
+              result.startTime,
+              result.endTime,
+              result.error,
+              result.tags || [],
+              result.browser,
+              result.os,
+              result.environment,
+              result.buildId,
+              result.commitHash,
+              result.branchName,
+              result.author,
+              result.traceUrl,
+              result.tracePath,
+            ]
+          );
+        } catch (insertError: any) {
+          // If error is about missing columns, try without trace fields
+          if (insertError.message?.includes('column') && (insertError.message?.includes('trace_url') || insertError.message?.includes('trace_path'))) {
+            await client.query(
+              `INSERT INTO test_results 
+               (id, project_id, project_name, test_id, test_name, status, duration, retries, flaky_attempts, 
+                start_time, end_time, error, tags, browser, os, environment, build_id, commit_hash, branch_name, author)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)`,
+              [
+                result.id,
+                result.projectId,
+                result.projectName,
+                result.testId,
+                result.testName,
+                result.status,
+                result.duration,
+                result.retries,
+                result.flakyAttempts,
+                result.startTime,
+                result.endTime,
+                result.error,
+                result.tags || [],
+                result.browser,
+                result.os,
+                result.environment,
+                result.buildId,
+                result.commitHash,
+                result.branchName,
+                result.author,
+              ]
+            );
+          } else {
+            throw insertError;
+          }
+        }
       }
 
       // Update flaky tests and daily metrics
