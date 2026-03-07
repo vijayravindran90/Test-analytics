@@ -108,9 +108,17 @@ router.post('/tests/batch', async (req: Request, res: Response) => {
       message: `Saved ${results.length} test results`,
       projectId: project.id,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error saving test results:', error);
-    res.status(500).json({ error: 'Failed to save test results' });
+    const errorMessage = error?.message || 'Unknown error';
+    const errorStack = error?.stack || '';
+    console.error('Error details:', { message: errorMessage, stack: errorStack });
+    res.status(500).json({ 
+      error: 'Failed to save test results',
+      details: errorMessage,
+      // Include stack trace in non-production for debugging
+      ...(process.env.NODE_ENV !== 'production' && { stack: errorStack })
+    });
   }
 });
 
