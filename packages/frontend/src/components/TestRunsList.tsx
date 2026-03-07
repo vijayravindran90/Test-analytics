@@ -148,9 +148,6 @@ export function TestRunsList({ projectId, projectName = 'Project', runs, loading
                                     Status
                                   </th>
                                   <th className="px-6 py-3 text-left text-sm font-medium text-neutral-700">
-                                    Browser
-                                  </th>
-                                  <th className="px-6 py-3 text-left text-sm font-medium text-neutral-700">
                                     Duration
                                   </th>
                                   <th className="px-6 py-3 text-left text-sm font-medium text-neutral-700">
@@ -188,11 +185,6 @@ export function TestRunsList({ projectId, projectName = 'Project', runs, loading
                                         }`}
                                       >
                                         {test.status}
-                                      </span>
-                                    </td>
-                                    <td className="px-6 py-3 text-sm">
-                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                                        {test.browser || 'unknown'}
                                       </span>
                                     </td>
                                     <td className="px-6 py-3 text-sm text-neutral-900">

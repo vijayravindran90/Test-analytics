@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft } from 'lucide-react';
-import { useDashboardData, useProject, useBrowserMetrics, useBrowserTrends, useTestRuns } from '../api/hooks';
+import { useDashboardData, useProject, useTestRuns } from '../api/hooks';
 import MetricCard from '../components/MetricCard';
 import FlakyTestsList from '../components/FlakyTestsList';
 import PerformanceAlerts from '../components/PerformanceAlerts';
 import { TrendChart, DurationChart, MetricsOverviewChart } from '../components/Charts';
-import { BrowserMetricsTable, BrowserMetricsChart } from '../components/BrowserMetrics';
 import { TestRunsList } from '../components/TestRunsList';
 import { formatDuration, formatPercent } from '../utils/format';
 import type { TestResult } from 'test-analytics-shared';
@@ -22,8 +21,6 @@ export default function ProjectDetail() {
 
   const { project, loading: projectLoading } = useProject(projectId);
   const { data: dashboardData, loading: dataLoading, error } = useDashboardData(projectId, days);
-  const { metrics: browserMetrics, loading: browserLoading } = useBrowserMetrics(projectId);
-  const { trends: browserTrends } = useBrowserTrends(projectId, days);
   const { runs: testRuns, loading: runsLoading } = useTestRuns(projectId, 20);
 
   if (projectLoading || dataLoading) {
@@ -176,28 +173,6 @@ export default function ProjectDetail() {
 
       {/* Performance Alerts */}
       <PerformanceAlerts alerts={performanceAlerts} />
-
-      {/* Browser Metrics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {browserMetrics && browserMetrics.length > 0 && (
-          <>
-            <BrowserMetricsChart
-              data={browserMetrics}
-              title="Tests by Browser"
-            />
-            {browserTrends && browserTrends.length > 0 && (
-              <BrowserMetricsChart
-                data={browserTrends}
-                title="Browser Pass Rate Trend"
-              />
-            )}
-          </>
-        )}
-      </div>
-
-      {browserMetrics && browserMetrics.length > 0 && (
-        <BrowserMetricsTable metrics={browserMetrics} title="Browser Performance Summary" />
-      )}
 
       {/* Test Runs */}
       <TestRunsList projectId={projectId} runs={testRuns} loading={runsLoading} projectName={project?.name} />
