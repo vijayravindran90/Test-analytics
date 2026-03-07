@@ -1,6 +1,6 @@
 {
   "name": "test-analytics-reporter",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Playwright test reporter for sending results to Test Analytics Dashboard",
   "main": "dist/reporter.js",
   "types": "dist/reporter.d.ts",
@@ -37,7 +37,7 @@
   "dependencies": {
     "@playwright/test": "^1.40.0",
     "axios": "^1.6.0",
-    "test-analytics-shared": "file:../shared",
+    "test-analytics-shared": "^1.0.2",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
