@@ -641,6 +641,8 @@ export class TestService {
       commitHash: row.commit_hash,
       branchName: row.branch_name,
       author: row.author,
+      traceUrl: row.trace_url,
+      tracePath: row.trace_path,
     };
   }
 }
