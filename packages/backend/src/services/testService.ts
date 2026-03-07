@@ -515,30 +515,27 @@ export class TestService {
   }
 
   async getTestRuns(projectId: string, limit: number = 20): Promise<any[]> {
-    // Group tests by build_id or creation time window (5 minutes)
+    // Group tests by build_id if available, otherwise by 5-minute time windows
     const result = await pool.query(
-      `WITH test_runs AS (
-        SELECT 
-          COALESCE(build_id, DATE_TRUNC('minute', created_at)::text || '-' || ROW_NUMBER() OVER (PARTITION BY DATE_TRUNC('minute', created_at) ORDER BY created_at)) as run_id,
-          MIN(created_at) as run_start_time,
-          MAX(created_at) as run_end_time,
-          COUNT(*) as total_tests,
-          SUM(CASE WHEN status = 'PASSED' THEN 1 ELSE 0 END) as passed_tests,
-          SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) as failed_tests,
-          SUM(CASE WHEN status = 'SKIPPED' THEN 1 ELSE 0 END) as skipped_tests,
-          SUM(duration) as total_duration,
-          ROUND(AVG(duration)::numeric, 2) as avg_duration,
-          ROUND((SUM(CASE WHEN status = 'PASSED' THEN 1 ELSE 0 END)::numeric / COUNT(*)::numeric * 100)::numeric, 2) as pass_rate,
-          branch_name,
-          commit_hash,
-          author
-        FROM test_results
-        WHERE project_id = $1
-        GROUP BY COALESCE(build_id, DATE_TRUNC('minute', created_at)::text), branch_name, commit_hash, author
-      )
-      SELECT * FROM test_runs
-      ORDER BY run_start_time DESC
-      LIMIT $2`,
+      `SELECT 
+        COALESCE(build_id, DATE_TRUNC('minute', created_at)::text) as run_id,
+        MIN(created_at) as run_start_time,
+        MAX(created_at) as run_end_time,
+        COUNT(*) as total_tests,
+        SUM(CASE WHEN status = 'PASSED' THEN 1 ELSE 0 END) as passed_tests,
+        SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) as failed_tests,
+        SUM(CASE WHEN status = 'SKIPPED' THEN 1 ELSE 0 END) as skipped_tests,
+        SUM(duration) as total_duration,
+        ROUND(AVG(duration)::numeric, 2) as avg_duration,
+        ROUND((SUM(CASE WHEN status = 'PASSED' THEN 1 ELSE 0 END)::numeric / COUNT(*)::numeric * 100)::numeric, 2) as pass_rate,
+        branch_name,
+        commit_hash,
+        author
+       FROM test_results
+       WHERE project_id = $1
+       GROUP BY COALESCE(build_id, DATE_TRUNC('minute', created_at)::text), branch_name, commit_hash, author
+       ORDER BY run_start_time DESC
+       LIMIT $2`,
       [projectId, limit]
     );
 
@@ -561,25 +558,17 @@ export class TestService {
 
   async getTestsByRun(projectId: string, runId: string): Promise<TestResult[]> {
     // Get all tests from a specific run
-    // First check if it's a build_id or a time-based run_id
-    const result = await pool.query(
-      `SELECT * FROM test_results 
-       WHERE project_id = $1 AND (build_id = $2 OR (DATE_TRUNC('minute', created_at)::text || '-' || ROW_NUMBER() OVER (PARTITION BY DATE_TRUNC('minute', created_at) ORDER BY created_at))::text = $2)
-       ORDER BY created_at DESC`,
-      [projectId, runId]
-    );
-
-    if (result.rows.length === 0) {
-      // Try with time-based matching for the run_id
-      const timeResults = await pool.query(
-        `SELECT * FROM test_results 
-         WHERE project_id = $1 AND created_at >= NOW() - INTERVAL '10 minutes'
-         ORDER BY created_at DESC
-         LIMIT 50`,
-        [projectId]
-      );
-      return timeResults.rows.map((row: any) => this.mapRowToTestResult(row));
-    }
+    // runId can be either a build_id or a datetime string (from DATE_TRUNC)
+    let query = `
+      SELECT * FROM test_results 
+      WHERE project_id = $1 AND (
+        build_id = $2 OR 
+        DATE_TRUNC('minute', created_at)::text = $2
+      )
+      ORDER BY created_at DESC
+    `;
+    
+    const result = await pool.query(query, [projectId, runId]);
 
     return result.rows.map((row: any) => this.mapRowToTestResult(row));
   }

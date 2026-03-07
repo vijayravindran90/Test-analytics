@@ -1,6 +1,7 @@
 import express, { Request, Response } from 'express';
 import testService from '../services/testService';
 import projectService from '../services/projectService';
+import pool from '../db';
 
 interface TestResult {
   id: string;
@@ -274,6 +275,48 @@ router.get('/projects/:projectId/test-runs/:runId/tests', async (req: Request, r
   } catch (error) {
     console.error('Error fetching tests in run:', error);
     res.status(500).json({ error: 'Failed to fetch tests in run' });
+  }
+});
+
+// Diagnostic endpoint - get test count and sample data
+router.get('/projects/:projectId/diagnostic', async (req: Request, res: Response) => {
+  try {
+    const { projectId } = req.params;
+
+    // Get total test count
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total_count FROM test_results WHERE project_id = $1`,
+      [projectId]
+    );
+
+    // Get sample of recent tests
+    const sampleResult = await pool.query(
+      `SELECT id, test_name, status, browser, build_id, created_at FROM test_results 
+       WHERE project_id = $1 
+       ORDER BY created_at DESC 
+       LIMIT 10`,
+      [projectId]
+    );
+
+    // Get run grouping info
+    const runsResult = await pool.query(
+      `SELECT COALESCE(build_id, DATE_TRUNC('minute', created_at)::text) as run_id, COUNT(*) as count
+       FROM test_results
+       WHERE project_id = $1
+       GROUP BY COALESCE(build_id, DATE_TRUNC('minute', created_at)::text)
+       ORDER BY MAX(created_at) DESC
+       LIMIT 10`,
+      [projectId]
+    );
+
+    res.json({
+      totalTests: parseInt(countResult.rows[0]?.total_count) || 0,
+      recentSamples: sampleResult.rows,
+      runGroups: runsResult.rows,
+    });
+  } catch (error) {
+    console.error('Error fetching diagnostic data:', error);
+    res.status(500).json({ error: 'Failed to fetch diagnostic data' });
   }
 });
 
