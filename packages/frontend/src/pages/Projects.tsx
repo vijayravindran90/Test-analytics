@@ -7,7 +7,7 @@ import apiClient from '../api/client';
 export default function Projects() {
   const { projects, loading, error } = useProjects();
   const [showForm, setShowForm] = useState(false);
-  const [formData, setFormData] = useState({ name: '', description: '', owner: '' });
+  const [formData, setFormData] = useState({ name: '', description: '' });
   const [creating, setCreating] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -21,7 +21,7 @@ export default function Projects() {
 
     try {
       await apiClient.post('/projects', formData);
-      setFormData({ name: '', description: '', owner: '' });
+      setFormData({ name: '', description: '' });
       setShowForm(false);
       // Reload projects
       window.location.reload();
@@ -90,18 +90,6 @@ export default function Projects() {
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               placeholder="Project description"
               rows={3}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">
-              Owner
-            </label>
-            <input
-              type="text"
-              value={formData.owner}
-              onChange={(e) => setFormData({ ...formData, owner: e.target.value })}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="John Doe"
             />
           </div>
           {submitError && (

@@ -2,6 +2,9 @@ import express, { Request, Response } from 'express';
 import testService from '../services/testService';
 import projectService from '../services/projectService';
 import pool from '../db';
+import userService from '../services/userService';
+import { signAuthToken } from '../auth';
+import { AuthenticatedRequest, requireAuth } from '../middleware/auth';
 
 interface TestResult {
   id: string;
@@ -39,6 +42,91 @@ interface DashboardData {
 }
 
 const router = express.Router();
+
+async function ensureProjectAccess(req: AuthenticatedRequest, res: Response): Promise<string | null> {
+  const { projectId } = req.params;
+  const userId = req.user?.id;
+
+  if (!userId) {
+    res.status(401).json({ error: 'Authentication required' });
+    return null;
+  }
+
+  const project = await projectService.getProject(projectId, userId);
+  if (!project) {
+    res.status(404).json({ error: 'Project not found' });
+    return null;
+  }
+
+  return projectId;
+}
+
+router.post('/auth/register', async (req: Request, res: Response) => {
+  try {
+    const { email, password, name } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    if (String(password).length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+    }
+
+    const user = await userService.register(String(email), String(password), name ? String(name) : undefined);
+    const token = signAuthToken({ userId: user.id, email: user.email });
+
+    res.status(201).json({
+      token,
+      user,
+    });
+  } catch (error: any) {
+    if (error?.message?.includes('already exists')) {
+      return res.status(409).json({ error: error.message });
+    }
+
+    console.error('Error registering user:', error);
+    res.status(500).json({ error: 'Failed to register user' });
+  }
+});
+
+router.post('/auth/login', async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
+
+    const user = await userService.login(String(email), String(password));
+
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
+
+    const token = signAuthToken({ userId: user.id, email: user.email });
+
+    res.json({ token, user });
+  } catch (error) {
+    console.error('Error logging in user:', error);
+    res.status(500).json({ error: 'Failed to login' });
+  }
+});
+
+router.get('/auth/me', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const user = await userService.getUserById(req.user!.id);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error('Error fetching current user:', error);
+    res.status(500).json({ error: 'Failed to fetch user profile' });
+  }
+});
 
 // Save test results
 router.post('/tests/batch', async (req: Request, res: Response) => {
@@ -123,15 +211,13 @@ router.post('/tests/batch', async (req: Request, res: Response) => {
 });
 
 // Get dashboard data for a project
-router.get('/projects/:projectId/dashboard', async (req: Request, res: Response) => {
+router.get('/projects/:projectId/dashboard', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { projectId } = req.params;
-    const { days = 30 } = req.query;
-
-    const project = await projectService.getProject(projectId);
-    if (!project) {
-      return res.status(404).json({ error: 'Project not found' });
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
     }
+    const { days = 30 } = req.query;
 
     const [metrics, flakyTests, performanceAlerts, recentTests, trends] = await Promise.all([
       testService.getProjectMetrics(projectId, parseInt(days as string)),
@@ -157,9 +243,12 @@ router.get('/projects/:projectId/dashboard', async (req: Request, res: Response)
 });
 
 // Get metrics for a project
-router.get('/projects/:projectId/metrics', async (req: Request, res: Response) => {
+router.get('/projects/:projectId/metrics', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
     const { days = 30 } = req.query;
 
     const metrics = await testService.getProjectMetrics(projectId, parseInt(days as string));
@@ -171,9 +260,12 @@ router.get('/projects/:projectId/metrics', async (req: Request, res: Response) =
 });
 
 // Get flaky tests
-router.get('/projects/:projectId/flaky-tests', async (req: Request, res: Response) => {
+router.get('/projects/:projectId/flaky-tests', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
     const { limit = 10 } = req.query;
 
     const flakyTests = await testService.getFlakyTests(projectId, parseInt(limit as string));
@@ -185,9 +277,12 @@ router.get('/projects/:projectId/flaky-tests', async (req: Request, res: Respons
 });
 
 // Get performance alerts
-router.get('/projects/:projectId/performance-alerts', async (req: Request, res: Response) => {
+router.get('/projects/:projectId/performance-alerts', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
     const { limit = 10 } = req.query;
 
     const alerts = await testService.getPerformanceAlerts(projectId, parseInt(limit as string));
@@ -199,9 +294,12 @@ router.get('/projects/:projectId/performance-alerts', async (req: Request, res: 
 });
 
 // Get metrics trend
-router.get('/projects/:projectId/trends', async (req: Request, res: Response) => {
+router.get('/projects/:projectId/trends', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
     const { days = 30 } = req.query;
 
     const trends = await testService.getMetricsTrend(projectId, parseInt(days as string));
@@ -213,9 +311,12 @@ router.get('/projects/:projectId/trends', async (req: Request, res: Response) =>
 });
 
 // Get recent tests
-router.get('/projects/:projectId/recent-tests', async (req: Request, res: Response) => {
+router.get('/projects/:projectId/recent-tests', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
     const { limit = 20 } = req.query;
 
     const tests = await testService.getRecentTests(projectId, parseInt(limit as string));
@@ -227,9 +328,12 @@ router.get('/projects/:projectId/recent-tests', async (req: Request, res: Respon
 });
 
 // Get browser metrics
-router.get('/projects/:projectId/browser-metrics', async (req: Request, res: Response) => {
+router.get('/projects/:projectId/browser-metrics', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
 
     const browserMetrics = await testService.getBrowserMetrics(projectId);
     res.json(browserMetrics);
@@ -240,9 +344,13 @@ router.get('/projects/:projectId/browser-metrics', async (req: Request, res: Res
 });
 
 // Get tests by specific browser
-router.get('/projects/:projectId/tests/browser/:browser', async (req: Request, res: Response) => {
+router.get('/projects/:projectId/tests/browser/:browser', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { projectId, browser } = req.params;
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
+    const { browser } = req.params;
     const { limit = 50 } = req.query;
 
     const tests = await testService.getTestsByBrowser(projectId, browser, parseInt(limit as string));
@@ -254,9 +362,12 @@ router.get('/projects/:projectId/tests/browser/:browser', async (req: Request, r
 });
 
 // Get browser metrics trend
-router.get('/projects/:projectId/browser-trends', async (req: Request, res: Response) => {
+router.get('/projects/:projectId/browser-trends', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
     const { days = 30 } = req.query;
 
     const trends = await testService.getBrowserMetricsTrend(projectId, parseInt(days as string));
@@ -268,9 +379,12 @@ router.get('/projects/:projectId/browser-trends', async (req: Request, res: Resp
 });
 
 // Get test runs (grouped executions)
-router.get('/projects/:projectId/test-runs', async (req: Request, res: Response) => {
+router.get('/projects/:projectId/test-runs', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
     const { limit = 20 } = req.query;
 
     const runs = await testService.getTestRuns(projectId, parseInt(limit as string));
@@ -282,9 +396,13 @@ router.get('/projects/:projectId/test-runs', async (req: Request, res: Response)
 });
 
 // Get tests in a specific run
-router.get('/projects/:projectId/test-runs/:runId/tests', async (req: Request, res: Response) => {
+router.get('/projects/:projectId/test-runs/:runId/tests', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { projectId, runId } = req.params;
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
+    const { runId } = req.params;
 
     const tests = await testService.getTestsByRun(projectId, decodeURIComponent(runId));
     res.json(tests);
@@ -295,10 +413,10 @@ router.get('/projects/:projectId/test-runs/:runId/tests', async (req: Request, r
 });
 
 // Serve stored trace zip for a test result
-router.get('/traces/:testResultId/download', async (req: Request, res: Response) => {
+router.get('/traces/:testResultId/download', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { testResultId } = req.params;
-    const trace = await testService.getTraceFileByTestResultId(testResultId);
+    const trace = await testService.getTraceFileByTestResultIdForUser(testResultId, req.user!.id);
 
     if (!trace) {
       return res.status(404).json({ error: 'Trace not found' });
@@ -322,9 +440,12 @@ router.get('/traces/:testResultId/download', async (req: Request, res: Response)
 });
 
 // Diagnostic endpoint - get test count and sample data
-router.get('/projects/:projectId/diagnostic', async (req: Request, res: Response) => {
+router.get('/projects/:projectId/diagnostic', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { projectId } = req.params;
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
 
     // Get total test count
     const countResult = await pool.query(
@@ -364,7 +485,7 @@ router.get('/projects/:projectId/diagnostic', async (req: Request, res: Response
 });
 
 // Projects CRUD
-router.post('/projects', async (req: Request, res: Response) => {
+router.post('/projects', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { name, description, owner } = req.body;
 
@@ -372,7 +493,12 @@ router.post('/projects', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Project name is required' });
     }
 
-    const project = await projectService.createProject(name, description, owner);
+    const project = await projectService.createProject(
+      name,
+      description,
+      owner || req.user?.email,
+      req.user!.id
+    );
     res.json(project);
   } catch (error) {
     console.error('Error creating project:', error);
@@ -380,9 +506,9 @@ router.post('/projects', async (req: Request, res: Response) => {
   }
 });
 
-router.get('/projects', async (req: Request, res: Response) => {
+router.get('/projects', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const projects = await projectService.getAllProjects();
+    const projects = await projectService.getAllProjects(req.user!.id);
     res.json(projects);
   } catch (error) {
     console.error('Error fetching projects:', error);
@@ -390,10 +516,10 @@ router.get('/projects', async (req: Request, res: Response) => {
   }
 });
 
-router.get('/projects/:projectId', async (req: Request, res: Response) => {
+router.get('/projects/:projectId', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { projectId } = req.params;
-    const project = await projectService.getProject(projectId);
+    const project = await projectService.getProject(projectId, req.user!.id);
 
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
@@ -406,12 +532,12 @@ router.get('/projects/:projectId', async (req: Request, res: Response) => {
   }
 });
 
-router.put('/projects/:projectId', async (req: Request, res: Response) => {
+router.put('/projects/:projectId', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { projectId } = req.params;
     const updates = req.body;
 
-    const project = await projectService.updateProject(projectId, updates);
+    const project = await projectService.updateProject(projectId, updates, req.user!.id);
     res.json(project);
   } catch (error) {
     console.error('Error updating project:', error);
@@ -419,10 +545,10 @@ router.put('/projects/:projectId', async (req: Request, res: Response) => {
   }
 });
 
-router.delete('/projects/:projectId', async (req: Request, res: Response) => {
+router.delete('/projects/:projectId', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { projectId } = req.params;
-    await projectService.deleteProject(projectId);
+    await projectService.deleteProject(projectId, req.user!.id);
     res.json({ success: true });
   } catch (error) {
     console.error('Error deleting project:', error);

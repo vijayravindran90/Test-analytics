@@ -665,6 +665,38 @@ export class TestService {
     };
   }
 
+  async getTraceFileByTestResultIdForUser(
+    testResultId: string,
+    userId: string
+  ): Promise<{ fileName: string; contentBase64: string } | null> {
+    let result;
+    try {
+      result = await pool.query(
+        `SELECT tf.file_name, tf.content_base64
+         FROM trace_files tf
+         INNER JOIN test_results tr ON tr.id = tf.test_result_id
+         INNER JOIN projects p ON p.id = tr.project_id
+         WHERE tf.test_result_id = $1 AND p.user_id = $2
+         LIMIT 1`,
+        [testResultId, userId]
+      );
+    } catch (error: any) {
+      if (error.message?.includes('relation "trace_files" does not exist')) {
+        return null;
+      }
+      throw error;
+    }
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return {
+      fileName: result.rows[0].file_name || 'trace.zip',
+      contentBase64: result.rows[0].content_base64,
+    };
+  }
+
   private mapRowToTestResult(row: any): TestResult {
     return {
       id: row.id,

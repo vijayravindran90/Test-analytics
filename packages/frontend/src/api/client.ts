@@ -1,6 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 
-const API_BASE_URL = 'https://test-analytics-production.up.railway.app/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
 console.log('API Base URL:', API_BASE_URL);
 
@@ -30,7 +30,9 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('authToken');
-      window.location.href = '/login';
+      if (window.location.hash !== '#/login') {
+        window.location.hash = '#/login';
+      }
     }
     return Promise.reject(error);
   }

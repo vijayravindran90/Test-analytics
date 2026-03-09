@@ -5,6 +5,8 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
+import Login from './pages/Login';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   const [theme, setTheme] = React.useState<'light' | 'dark'>(() => {
@@ -31,9 +33,12 @@ function App() {
         <Header theme={theme} onToggleTheme={toggleTheme} />
         <main className="container mx-auto flex-1 px-4 py-8">
           <Routes>
-            <Route path="/" element={<Projects />} />
-            <Route path="/projects" element={<Projects />} />
-            <Route path="/project/:projectId" element={<ProjectDetail />} />
+            <Route path="/login" element={<Login />} />
+            <Route element={<ProtectedRoute />}>
+              <Route path="/" element={<Navigate to="/projects" replace />} />
+              <Route path="/projects" element={<Projects />} />
+              <Route path="/project/:projectId" element={<ProjectDetail />} />
+            </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
