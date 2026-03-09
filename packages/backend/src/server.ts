@@ -12,13 +12,22 @@ const ENV = process.env.NODE_ENV || 'development';
 // Middleware
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// CORS configuration - allow multiple origins
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3002',
+  'https://vijayravindran90.github.io',
+  'https://trace.playwright.dev'
+];
+
+// Add FRONTEND_URL from environment if set
+if (process.env.FRONTEND_URL && !allowedOrigins.includes(process.env.FRONTEND_URL)) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || [
-    'http://localhost:3000',
-    'http://localhost:3002',
-    'https://vijayravindran90.github.io',
-    'https://trace.playwright.dev'
-  ],
+  origin: allowedOrigins,
   credentials: true,
 }));
 
