@@ -26,7 +26,7 @@ export default function Projects() {
       // Reload projects
       window.location.reload();
     } catch (err: any) {
-      setSubmitError(err.message || 'Failed to create project');
+      setSubmitError(err?.response?.data?.error || err.message || 'Failed to create project');
     } finally {
       setCreating(false);
     }

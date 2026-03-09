@@ -500,7 +500,11 @@ router.post('/projects', requireAuth, async (req: AuthenticatedRequest, res: Res
       req.user!.id
     );
     res.json(project);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === '23505') {
+      return res.status(409).json({ error: 'A project with this name already exists in your profile' });
+    }
+
     console.error('Error creating project:', error);
     res.status(500).json({ error: 'Failed to create project' });
   }
@@ -539,7 +543,11 @@ router.put('/projects/:projectId', requireAuth, async (req: AuthenticatedRequest
 
     const project = await projectService.updateProject(projectId, updates, req.user!.id);
     res.json(project);
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === '23505') {
+      return res.status(409).json({ error: 'A project with this name already exists in your profile' });
+    }
+
     console.error('Error updating project:', error);
     res.status(500).json({ error: 'Failed to update project' });
   }
