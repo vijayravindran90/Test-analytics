@@ -235,62 +235,6 @@ export function TestRunsList({ projectId, projectName = 'Project', runs, loading
               </React.Fragment>
             ))}
           </tbody>
-          <tbody>
-            {runs.map((run: TestRun) => (
-              <tr
-                key={run.runId}
-                onClick={() =>
-                  setExpandedRunId(expandedRunId === run.runId ? null : run.runId)
-                }
-                className="border-b hover:bg-neutral-50 transition cursor-pointer"
-              >
-                <td className="px-6 py-4 text-sm font-medium text-neutral-900">
-                  <div className="flex items-center gap-2">
-                    {expandedRunId === run.runId ? (
-                      <ChevronDown className="w-4 h-4 text-neutral-600 flex-shrink-0" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-neutral-600 flex-shrink-0" />
-                    )}
-                    {runNameMap[run.runId]}
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-sm text-neutral-600">
-                  <div>
-                    <p>{new Date(run.startTime).toLocaleDateString()}</p>
-                    <p className="text-xs text-neutral-500">{new Date(run.startTime).toLocaleTimeString()}</p>
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-sm text-center font-medium text-neutral-900">
-                  {run.totalTests}
-                </td>
-                <td className="px-6 py-4 text-sm text-center">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-success-50 text-success-700">
-                    {run.passedTests}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm text-center">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-danger-50 text-danger-700">
-                    {run.failedTests}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm text-center">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-neutral-50 text-neutral-700">
-                    {run.skippedTests}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm text-center">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                    run.passRate >= 80 ? 'bg-success-50 text-success-700' : 'bg-warning-50 text-warning-700'
-                  }`}>
-                    {formatPercent(run.passRate)}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm text-neutral-900">
-                  {formatDuration(run.totalDuration)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
         </table>
       </div>
     </div>
