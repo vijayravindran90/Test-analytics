@@ -148,6 +148,25 @@ FRONTEND_URL=http://localhost:3000
 API_KEY=optional-secret-key
 ```
 
+```ini
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test_analytics
+PORT=3001
+NODE_ENV=development
+FRONTEND_URL=http://localhost:3000
+JWT_SECRET=your-secret-key-min-32-characters
+ADMIN_KEY=optional-admin-api-key
+```
+
+**JWT_SECRET**: Required for signing and verifying authentication tokens. Generate with:
+```bash
+openssl rand -base64 32
+```
+
+### Frontend (.env)
+
+```ini
+VITE_API_URL=http://localhost:3001/api
+```
 ### Playwright Config
 
 ```typescript

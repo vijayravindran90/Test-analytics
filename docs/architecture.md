@@ -136,6 +136,19 @@ Request → Route Handler → Service → Database
 
 1. **Routes** (`/routes`)
    - HTTP endpoint definitions
+      ┌──────────────────────────────────────────────────────────────────┐
+      │                   Authentication Layer                            │
+      │                                                                   │
+      │  ┌──────────────────────────────────────────────────────────┐   │
+      │  │        JWT Token Management (Bearer Scheme)              │   │
+      │  │  - POST /auth/register (create account)                  │   │
+      │  │  - POST /auth/login (get JWT token)                      │   │
+      │  │  - GET /auth/me (validate token & get user)              │   │
+      │  │  - Token Expiry: 7 days                                  │   │
+      │  │  - Password Hashing: bcryptjs (10 rounds)                │   │
+      │  └──────────────────────────────────────────────────────────┘   │
+      │                               │                                   │
+      └───────────────────────────────┼───────────────────────────────────┘
    - Input validation
    - Response formatting
 
@@ -159,6 +172,12 @@ Request → Route Handler → Service → Database
 ### Frontend Package (`@test-analytics/frontend`)
 
 React dashboard with hooks for data fetching:
+      ┌──────────────────────────────────────────────────────────────────┐
+      │              Service Layer with Multi-Tenant Awareness            │
+      │  - UserService (register, login, profile)                        │
+      │  - ProjectService (CRUD with user_id filtering)                  │
+      │  - TestService (aggregation with project ownership check)        │
+      │  └──────────────────────────────────────────────────────────────┘
 
 ```
 App (Router)
@@ -200,8 +219,19 @@ App (Router)
    Reporter captures results and browser name
    ↓
    Groups tests by run (buildId or time window)
+      │  ┌─────────────────────────────────────────────────────────┐    │
+      │  │ users (NEW v1.1.0)                                      │    │
+      │  │   - id (UUID)                                           │    │
+      │  │   - email (UNIQUE)                                      │    │
+      │  │   - password_hash (bcrypt)                              │    │
+      │  │   - name                                                │    │
+      │  │   - created_at, updated_at                              │    │
+      │  └─────────────────────────────────────────────────────────┘    │
+      │
    ↓
    Batches 50 results
+      │  │   - id (UUID)                                           │    │
+      │  │   - user_id (FK to users.id) [NEW]                      │    │
    ↓
    POST /api/tests/batch
    ```
@@ -218,6 +248,8 @@ App (Router)
    ↓
    Updates flaky_tests table
    ↓
+      │  - idx_projects_user_id (for filtering user projects)            │
+      │  - idx_projects_user_id_name_unique (per-user uniqueness)        │
    Updates daily_metrics table
    ↓
    Updates browser_metrics table (new)
@@ -307,16 +339,13 @@ WHERE created_at < NOW() - INTERVAL '90 days';
 -- Aggregate to daily_metrics
 -- Keep for 2 years
 ```
-
 ## Metric Calculations
 
 ### Flakiness Detection Algorithm
 
-A test is considered flaky if:
 1. It has flakyAttempts > 0 (required retries)
 2. It has inconsistent pass/fail across runs
 
-```typescript
 flakinessPercentage = (failedRuns / totalRuns) * 100
 
 // Only count tests with multiple failures

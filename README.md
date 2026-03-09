@@ -1,9 +1,16 @@
 # Test Analytics Dashboard
 
-A comprehensive test reporting and analytics dashboard for Playwright tests, similar to BrowserStack. Track test duration, stability, and flakiness percentage across your test suites.
+A comprehensive test reporting and analytics dashboard for Playwright tests, similar to BrowserStack. Track test duration, stability, and flakiness percentage across your test suites. **Now with built-in user authentication and multi-tenant project isolation!**
 
-## Features
+## Key Features
 
+### 🔐 User Authentication & Multi-Tenant Support (NEW in v1.1.0)
+- **User Registration & Login**: Create secure accounts with email and password
+- **JWT-Based Authentication**: Secure stateless authentication with 7-day token expiry
+- **Project Isolation**: Each user's projects and test data are completely isolated
+- **Per-User Project Namespacing**: Same project name can exist across different user profiles
+
+### 📊 Test Analytics
 - **Test Metrics Dashboard**: Real-time metrics including pass rate, failure rate, flakiness percentage, and stability score
 - **Browser-Specific Analytics**: Track test metrics across different browsers (Chromium, Firefox, WebKit) with separate dashboards and trend analysis
 - **Test Run Organization**: Tests grouped by execution runs (identified by buildId or time windows) with expandable details for each run
@@ -11,7 +18,9 @@ A comprehensive test reporting and analytics dashboard for Playwright tests, sim
 - **Flaky Test Detection**: Automatically identify and categorize flaky tests with trend analysis
 - **Performance Alerts**: Get notified when tests exceed performance thresholds
 - **Historical Trend Analysis**: Visualize test metrics over time with interactive charts
-- **Multi-Project Support**: Manage and compare metrics across multiple test projects
+
+### 🚀 Advanced Features
+- **Multi-Project Support**: Manage multiple test projects within your account
 - **CI/CD Integration**: Built-in support for GitHub Actions, GitLab CI, and Jenkins with Playwright reporter
 - **Theme Toggle**: Switch between light and dark mode from the dashboard header
 - **Quick Documentation Access**: Header `Docs` link opens architecture documentation on GitHub
@@ -33,9 +42,10 @@ The solution consists of 4 main packages:
 ## Tech Stack
 
 - **Reporter**: Playwright reporter API
-- **Backend**: Node.js + Express + PostgreSQL
-- **Frontend**: React + TypeScript + Tailwind CSS + Recharts
-- **Database**: PostgreSQL
+- **Backend**: Node.js + Express + PostgreSQL + JWT (JSON Web Tokens)
+- **Frontend**: React + TypeScript + Tailwind CSS + Recharts + React Router
+- **Database**: PostgreSQL with migrations support
+- **Authentication**: bcryptjs (password hashing) + jsonwebtoken (JWT)
 
 ## Getting Started
 
@@ -78,12 +88,15 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/test_analytics
 PORT=3001
 NODE_ENV=development
 FRONTEND_URL=http://localhost:3000
-API_KEY=optional-api-key
+JWT_SECRET=your-secret-key-min-32-chars-generated-randomly
+ADMIN_KEY=optional-admin-api-key
 ```
+
+> **Note on JWT_SECRET**: Generate a strong random key of at least 32 characters for production. Example: `openssl rand -base64 32`
 
 **packages/frontend/.env** (optional):
 ```ini
-REACT_APP_API_URL=http://localhost:3001/api
+VITE_API_URL=http://localhost:3001/api
 ```
 
 ### 5. Start the Backend Server
@@ -102,9 +115,27 @@ npm run dev -w packages/frontend
 
 The dashboard will be available at `http://localhost:3000`
 
-## Using the Reporter
+## Using the Dashboard
 
-### 1. Add the Reporter to Your Playwright Config
+### Important: Authentication Required
+
+Starting with v1.1.0, the dashboard requires user authentication. All test data is private to each user's account.
+
+### 1. Create Your Account
+
+1. Open the dashboard at `http://localhost:3000`
+2. Click **"Login"** in the top right
+3. Click **"Create Account"** to register
+4. Enter your email and password
+5. Click **"Sign Up"**
+
+### 2. Create a Project
+
+1. After logging in, click **"New Project"**
+2. Enter a project name (e.g., "My Test Suite")
+3. Save your **Project ID** (displayed in the URL after creation)
+
+### 3. Configure Playwright Reporter
 
 In your `playwright.config.ts`:
 
@@ -115,9 +146,8 @@ export default defineConfig({
   reporter: [
     ['test-analytics-reporter', {
       backendUrl: 'http://localhost:3001/api',
-      projectId: 'my-project-id',
-      projectName: 'My Project',
-      apiKey: process.env.API_KEY,
+      projectId: 'your-project-id',
+      projectName: 'My Test Suite',
       enabled: true,
     }],
   ],
@@ -125,7 +155,15 @@ export default defineConfig({
 });
 ```
 
-### 2. Environment Variables
+### 4. Run Tests
+
+```bash
+npx playwright test
+```
+
+Test results will be automatically sent to your private dashboard.
+
+## Using the Reporter
 
 The reporter automatically captures these environment variables for CI/CD integration:
 
@@ -153,17 +191,41 @@ Test results will be automatically sent to the analytics dashboard.
 
 ## API Documentation
 
+### Authentication
+
+All endpoints except `/auth/register` and `/auth/login` require a Bearer token in the `Authorization` header.
+
+```bash
+curl -H "Authorization: Bearer YOUR_JWT_TOKEN" http://localhost:3001/api/projects
+```
+
+**Authentication Endpoints:**
+
+- `POST /api/auth/register` - Create a new user account
+  - Body: `{ email, password, name? }`
+  - Returns: `{ token, user: { id, email, name } }`
+
+- `POST /api/auth/login` - Log in and get a JWT token
+  - Body: `{ email, password }`
+  - Returns: `{ token, user: { id, email, name } }`
+
+- `GET /api/auth/me` - Get current user profile
+  - Requires: Bearer token
+  - Returns: `{ user: { id, email, name } }`
+
 ### Projects
 
-- `GET /api/projects` - Get all projects
-- `POST /api/projects` - Create a new project
+All project endpoints require authentication.
+
+- `GET /api/projects` - Get all projects for the authenticated user
+- `POST /api/projects` - Create a new project (name must be unique per user)
 - `GET /api/projects/:projectId` - Get project details
 - `PUT /api/projects/:projectId` - Update project
 - `DELETE /api/projects/:projectId` - Delete project
 
 ### Test Results
 
-- `POST /api/tests/batch` - Submit batch of test results
+- `POST /api/tests/batch` - Submit batch of test results (requires projectId authorization)
 
 ### Analytics
 
