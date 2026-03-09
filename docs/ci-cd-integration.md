@@ -216,17 +216,144 @@ Integrate the Test Analytics Dashboard with your CI/CD pipeline to automatically
    }
    ```
 
+## Azure Pipelines
+
+### Setup
+
+1. **Add Pipeline Variables**
+
+   Go to Pipelines → Edit → Variables, add:
+   
+   ```
+   ANALYTICS_API_URL = https://your-analytics-api.com/api
+   PROJECT_ID = azure-pipeline-tests
+   ANALYTICS_API_KEY = your-optional-api-key (mark as secret)
+   ```
+
+2. **Create `azure-pipelines.yml`**
+
+   ```yaml
+   trigger:
+     - main
+     - develop
+   
+   pr:
+     - main
+     - develop
+   
+   pool:
+     vmImage: 'ubuntu-latest'
+   
+   variables:
+     NODE_VERSION: '18.x'
+     PLAYWRIGHT_VERSION: '1.40'
+   
+   steps:
+     - task: NodeTool@0
+       displayName: 'Install Node.js'
+       inputs:
+         versionSpec: $(NODE_VERSION)
+     
+     - script: |
+         npm install
+       displayName: 'Install dependencies'
+     
+     - script: |
+         npx playwright install --with-deps
+       displayName: 'Install Playwright browsers'
+     
+     - script: |
+         npx playwright test
+       displayName: 'Run Playwright tests'
+       env:
+         ANALYTICS_API_URL: $(ANALYTICS_API_URL)
+         PROJECT_ID: $(PROJECT_ID)
+         PROJECT_NAME: $(Build.Repository.Name)
+         ANALYTICS_API_KEY: $(ANALYTICS_API_KEY)
+         CI_BUILD_ID: $(Build.BuildId)
+         CI_COMMIT_SHA: $(Build.SourceVersion)
+         CI_COMMIT_BRANCH: $(Build.SourceBranchName)
+         CI_COMMIT_AUTHOR: $(Build.RequestedFor)
+       continueOnError: true
+     
+     - task: PublishTestResults@2
+       displayName: 'Publish test results'
+       condition: always()
+       inputs:
+         testResultsFormat: 'JUnit'
+         testResultsFiles: 'test-results/**/*.xml'
+         mergeTestResults: true
+         testRunTitle: 'Playwright Tests'
+     
+     - task: PublishPipelineArtifact@1
+       displayName: 'Publish Playwright report'
+       condition: always()
+       inputs:
+         targetPath: 'playwright-report'
+         artifact: 'playwright-report'
+         publishLocation: 'pipeline'
+   ```
+
+3. **Multi-Browser Testing Configuration**
+
+   For parallel browser execution:
+
+   ```yaml
+   strategy:
+     matrix:
+       chromium:
+         BROWSER: 'chromium'
+       firefox:
+         BROWSER: 'firefox'
+       webkit:
+         BROWSER: 'webkit'
+     maxParallel: 3
+   
+   steps:
+     # ... previous steps ...
+     
+     - script: |
+         npx playwright test --project=$(BROWSER)
+       displayName: 'Run tests on $(BROWSER)'
+       env:
+         ANALYTICS_API_URL: $(ANALYTICS_API_URL)
+         PROJECT_ID: $(PROJECT_ID)
+         CI_BUILD_ID: $(Build.BuildId)
+   ```
+
+4. **Push and Trigger**
+
+   Commit the pipeline file to trigger execution. Test results will be grouped by:
+   - **Build ID** (Azure DevOps Build ID)
+   - **Branch** (Source branch name)
+   - **Commit** (Git commit hash)
+   - **Browser** (From matrix or project config)
+
+### Azure DevOps Service Connection
+
+For secure API access, use Azure Key Vault:
+
+```yaml
+steps:
+  - task: AzureKeyVault@2
+    inputs:
+      azureSubscription: 'your-service-connection'
+      KeyVaultName: 'your-keyvault'
+      SecretsFilter: 'ANALYTICS-API-KEY'
+      RunAsPreJob: true
+```
+
 ## Environment Variables Reference
 
-| Variable | Description | GitHub | GitLab | Jenkins |
-|----------|-------------|--------|--------|---------|
-| `ANALYTICS_API_URL` | Analytics API endpoint | ✓ | ✓ | ✓ |
-| `PROJECT_ID` | Unique project identifier | ✓ | ✓ | ✓ |
-| `API_KEY` | Optional authentication | ✓ | ✓ | ✓ |
-| `CI_BUILD_ID` | Unique build identifier | `github.run_id` | `CI_PIPELINE_ID` | `buildNumber` |
-| `CI_COMMIT_SHA` | Commit hash | `github.sha` | `CI_COMMIT_SHA` | `GIT_COMMIT` |
-| `CI_COMMIT_BRANCH` | Branch name | `github.ref_name` | `CI_COMMIT_BRANCH` | `GIT_BRANCH` |
-| `CI_COMMIT_AUTHOR` | Commit author | `github.actor` | `GITLAB_USER_LOGIN` | `BUILD_USER` |
+| Variable | Description | GitHub | GitLab | Jenkins | Azure |
+|----------|-------------|--------|--------|---------|-------|
+| `ANALYTICS_API_URL` | Analytics API endpoint | ✓ | ✓ | ✓ | ✓ |
+| `PROJECT_ID` | Unique project identifier | ✓ | ✓ | ✓ | ✓ |
+| `API_KEY` | Optional authentication | ✓ | ✓ | ✓ | ✓ |
+| `CI_BUILD_ID` | Unique build identifier | `github.run_id` | `CI_PIPELINE_ID` | `buildNumber` | `Build.BuildId` |
+| `CI_COMMIT_SHA` | Commit hash | `github.sha` | `CI_COMMIT_SHA` | `GIT_COMMIT` | `Build.SourceVersion` |
+| `CI_COMMIT_BRANCH` | Branch name | `github.ref_name` | `CI_COMMIT_BRANCH` | `GIT_BRANCH` | `Build.SourceBranchName` |
+| `CI_COMMIT_AUTHOR` | Commit author | `github.actor` | `GITLAB_USER_LOGIN` | `BUILD_USER` | `Build.RequestedFor` |
 
 ## Monitoring Analytics
 

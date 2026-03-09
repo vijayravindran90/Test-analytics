@@ -303,6 +303,163 @@ App (Router)
       - Expandable test runs with details
    ```
 
+## Authentication & Authorization Flow (v1.1.0)
+
+### User Registration
+
+```
+User submits email & password
+   ↓
+POST /auth/register
+   ↓
+UserService.register()
+   ├─ Validate email format
+   ├─ Check email uniqueness
+   ├─ Hash password with bcryptjs (10 rounds)
+   ├─ Create user record in DB
+   └─ Generate JWT token (7-day expiry)
+   ↓
+Return { token, user }
+   ↓
+Frontend stores token in localStorage
+```
+
+### User Login
+
+```
+User submits email & password
+   ↓
+POST /auth/login
+   ↓
+UserService.login()
+   ├─ Find user by email
+   ├─ Compare password with bcrypt
+   ├─ Validate credentials match
+   ├─ Generate JWT token (7-day expiry)
+   └─ Update last_login timestamp
+   ↓
+Return { token, user }
+   ↓
+Frontend stores token in localStorage
+```
+
+### Protected API Request Flow
+
+```
+Frontend with stored JWT token
+   ↓
+GET /api/projects
+   ├─ Header: Authorization: Bearer <token>
+   ↓
+Express middleware (requireAuth)
+   ├─ Extract token from Authorization header
+   ├─ Verify JWT signature with JWT_SECRET
+   ├─ Check token expiry (7 days)
+   ├─ Decode payload → extract userId
+   ├─ Attach user to request.user
+   ↓
+Route Handler
+   ├─ ProjectService.getAllProjects(userId)
+   ├─ Query: SELECT * FROM projects WHERE user_id = $1
+   ├─ Return projects for authenticated user only
+   ↓
+Frontend receives user-scoped results
+```
+
+### Session Validation on App Load
+
+```
+Frontend on app initialization
+   ↓
+Check localStorage for token
+   ├─ Token exists → GET /auth/me with Bearer token
+   │  ├─ Valid token → Restore user session
+   │  └─ Invalid/expired → Clear token, redirect to /login
+   └─ No token → Redirect to /login
+   ↓
+Display appropriate UI (authenticated or login page)
+```
+
+### Project Ownership Enforcement
+
+```sql
+-- Database constraint ensures referential integrity
+ALTER TABLE projects
+ADD CONSTRAINT fk_projects_user_id
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
+
+-- Unique constraint enforces per-user project name uniqueness
+CREATE UNIQUE INDEX idx_projects_user_id_name_unique
+ON projects(user_id, name);
+```
+
+**Ownership validation in API layer:**
+
+```typescript
+// ensureProjectAccess(userId: string, projectId: string)
+const project = await db.query(
+  'SELECT * FROM projects WHERE id = $1 AND user_id = $2',
+  [projectId, userId]
+);
+
+if (!project.rows.length) {
+  return 403; // Forbidden - user doesn't own this project
+}
+```
+
+### Frontend Authentication Architecture
+
+```
+App.tsx (Root)
+├─ AuthProvider (wraps entire app)
+│  ├─ Manages user state (user, isAuthenticated, loading)
+│  ├─ Provides: login(), register(), logout() actions
+│  ├─ Token storage in localStorage
+│  └─ Auto-validates session on mount via GET /auth/me
+├─ Router configuration
+│  ├─ /login → LoginPage (public)
+│  ├─ /projects → ProtectedRoute wrapper → ProjectsPage
+│  ├─ /project/:id → ProtectedRoute wrapper → ProjectDetailPage
+│  └─ /* → Redirect to /projects if authenticated, /login otherwise
+└─ API Client Interceptors
+   ├─ Request interceptor: Add Authorization: Bearer <token>
+   └─ Response interceptor: Handle 401 → redirect to /login
+```
+
+**ProtectedRoute component logic:**
+
+```tsx
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+  
+  if (loading) return <LoadingSpinner />;
+  if (!isAuthenticated) return <Navigate to="/login" />;
+  return children;
+}
+```
+
+### Security Considerations
+
+**Current Implementation:**
+- JWT tokens signed with HS256 algorithm
+- Password hashing with bcryptjs (10 salt rounds)
+- Token expiry: 7 days (604800 seconds)
+- CORS restricted to configured origins
+- SQL injection protection via parameterized queries
+- Input validation on all endpoints
+
+**Token Storage:**
+- Stored in browser localStorage
+- Automatically included in API requests
+- Cleared on logout or expiry
+- Not accessible to trace.playwright.dev (separate endpoint)
+
+**Access Control:**
+- All project/dashboard endpoints require authentication
+- User can only access their own projects
+- 403 Forbidden on unauthorized project access
+- 401 Unauthorized for invalid/missing tokens
+
 ## Database Design
 
 ### Schema Decisions
