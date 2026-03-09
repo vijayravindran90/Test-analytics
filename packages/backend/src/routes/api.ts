@@ -412,11 +412,11 @@ router.get('/projects/:projectId/test-runs/:runId/tests', requireAuth, async (re
   }
 });
 
-// Serve stored trace zip for a test result
-router.get('/traces/:testResultId/download', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+// Serve stored trace zip for a test result (public endpoint for trace.playwright.dev)
+router.get('/traces/:testResultId/download', async (req: Request, res: Response) => {
   try {
     const { testResultId } = req.params;
-    const trace = await testService.getTraceFileByTestResultIdForUser(testResultId, req.user!.id);
+    const trace = await testService.getTraceFileByTestResultId(testResultId);
 
     if (!trace) {
       return res.status(404).json({ error: 'Trace not found' });
