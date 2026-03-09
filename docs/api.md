@@ -2,6 +2,25 @@
 
 Complete API reference for the Test Analytics Backend.
 
+## Swagger / OpenAPI
+
+The canonical API contract is now available as an OpenAPI (Swagger) file:
+
+- `docs/openapi.yaml`
+
+You can import it into Swagger UI, Postman, Insomnia, or Redoc.
+
+Hosted endpoints (from backend):
+
+- `GET /api/openapi.yaml` - raw OpenAPI file
+- `GET /api/docs` - interactive Swagger UI
+
+Example with Swagger Editor:
+
+1. Open `https://editor.swagger.io`
+2. Paste the contents of `docs/openapi.yaml`
+3. Explore and test endpoints interactively
+
 ## Base URL
 
 ```
@@ -10,11 +29,20 @@ http://localhost:3001/api
 
 ## Authentication
 
-Optional API key authentication via headers:
+JWT Bearer authentication is required for most `/api/projects/**` endpoints:
 
 ```
-Authorization: Bearer YOUR_API_KEY
+Authorization: Bearer YOUR_JWT_TOKEN
 ```
+
+Public endpoints:
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/tests/batch`
+- `GET /api/traces/:testResultId/download`
+- `GET /health`
+- `GET /api/health`
 
 ## Response Format
 

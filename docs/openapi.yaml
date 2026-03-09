@@ -1,0 +1,922 @@
+openapi: 3.0.3
+info:
+  title: Test Analytics API
+  version: 1.1.0
+  description: |
+    OpenAPI specification for the Test Analytics backend.
+
+    Notes:
+    - Most `/api/projects/**` endpoints require JWT Bearer authentication.
+    - `/api/tests/batch`, `/api/traces/{testResultId}/download`, `/health`, and `/api/health` are public.
+servers:
+  - url: http://localhost:3001
+    description: Local development
+  - url: https://test-analytics-production.up.railway.app
+    description: Production (example)
+tags:
+  - name: Health
+  - name: Auth
+  - name: Projects
+  - name: Analytics
+  - name: Test Runs
+  - name: Traces
+  - name: Admin
+
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Health check (API alias)
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: User registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user profile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/tests/batch:
+    post:
+      tags: [Analytics]
+      summary: Submit test results batch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestBatchRequest'
+      responses:
+        '200':
+          description: Batch accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestBatchResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/projects:
+    get:
+      tags: [Projects]
+      summary: List projects for authenticated user
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Project list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Project'
+    post:
+      tags: [Projects]
+      summary: Create project
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectCreateRequest'
+      responses:
+        '200':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Duplicate project name in user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/projects/{projectId}:
+    parameters:
+      - $ref: '#/components/parameters/ProjectId'
+    get:
+      tags: [Projects]
+      summary: Get project by ID
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '404':
+          description: Project not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    put:
+      tags: [Projects]
+      summary: Update project
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectUpdateRequest'
+      responses:
+        '200':
+          description: Updated project
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+        '409':
+          description: Duplicate project name in user profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [Projects]
+      summary: Delete project
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Delete success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+
+  /api/projects/{projectId}/dashboard:
+    get:
+      tags: [Analytics]
+      summary: Get dashboard data
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        '200':
+          description: Dashboard payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  metrics:
+                    type: object
+                    additionalProperties: true
+                  flakyTests:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  performanceAlerts:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  recentTests:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TestResult'
+                  trends:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+
+  /api/projects/{projectId}/metrics:
+    get:
+      tags: [Analytics]
+      summary: Get project metrics
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        '200':
+          description: Metrics object
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+
+  /api/projects/{projectId}/flaky-tests:
+    get:
+      tags: [Analytics]
+      summary: Get flaky tests
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Flaky tests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+
+  /api/projects/{projectId}/performance-alerts:
+    get:
+      tags: [Analytics]
+      summary: Get performance alerts
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+
+  /api/projects/{projectId}/trends:
+    get:
+      tags: [Analytics]
+      summary: Get metrics trend data
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        '200':
+          description: Trend list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+
+  /api/projects/{projectId}/recent-tests:
+    get:
+      tags: [Analytics]
+      summary: Get recent tests
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Test results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TestResult'
+
+  /api/projects/{projectId}/browser-metrics:
+    get:
+      tags: [Analytics]
+      summary: Get metrics aggregated by browser
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Browser metrics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+
+  /api/projects/{projectId}/tests/browser/{browser}:
+    get:
+      tags: [Analytics]
+      summary: Get tests filtered by browser
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: browser
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [chromium, firefox, webkit, unknown]
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Test results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TestResult'
+
+  /api/projects/{projectId}/browser-trends:
+    get:
+      tags: [Analytics]
+      summary: Get browser trends
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        '200':
+          description: Browser trend list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  additionalProperties: true
+
+  /api/projects/{projectId}/test-runs:
+    get:
+      tags: [Test Runs]
+      summary: Get grouped test runs
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Test run list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TestRun'
+
+  /api/projects/{projectId}/test-runs/{runId}/tests:
+    get:
+      tags: [Test Runs]
+      summary: Get test results for a specific run
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Test results for run
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TestResult'
+
+  /api/projects/{projectId}/diagnostic:
+    get:
+      tags: [Analytics]
+      summary: Diagnostic project dataset checks
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      responses:
+        '200':
+          description: Diagnostic info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalTests:
+                    type: integer
+                  recentSamples:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  runGroups:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+
+  /api/traces/{testResultId}/download:
+    get:
+      tags: [Traces]
+      summary: Download trace zip for a test result
+      description: Public endpoint used by trace.playwright.dev
+      parameters:
+        - name: testResultId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Zip stream
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Trace not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/admin/migrate:
+    post:
+      tags: [Admin]
+      summary: Run DB migration helper for trace fields/table
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [adminKey]
+              properties:
+                adminKey:
+                  type: string
+      responses:
+        '200':
+          description: Migration status
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '403':
+          description: Unauthorized admin key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: ok
+        timestamp:
+          type: string
+          format: date-time
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          nullable: true
+      required: [id, email]
+
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+      required: [token, user]
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        name:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        owner:
+          type: string
+          nullable: true
+        userId:
+          type: string
+          format: uuid
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [id, name]
+
+    ProjectCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        owner:
+          type: string
+
+    ProjectUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        owner:
+          type: string
+
+    TestBatchRequest:
+      type: object
+      required: [results]
+      properties:
+        projectId:
+          type: string
+          format: uuid
+          nullable: true
+        projectName:
+          type: string
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/TestResultInput'
+
+    TestBatchResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        projectId:
+          type: string
+          format: uuid
+      required: [success, message, projectId]
+
+    TestResultInput:
+      type: object
+      properties:
+        id:
+          type: string
+        testId:
+          type: string
+        testName:
+          type: string
+        status:
+          type: string
+          enum: [PASSED, FAILED, SKIPPED, TIMEOUT]
+        duration:
+          type: number
+        retries:
+          type: integer
+        flakyAttempts:
+          type: integer
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        error:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        browser:
+          type: string
+        os:
+          type: string
+        environment:
+          type: string
+        buildId:
+          type: string
+        commitHash:
+          type: string
+        branchName:
+          type: string
+        author:
+          type: string
+        traceUrl:
+          type: string
+        tracePath:
+          type: string
+        traceDataBase64:
+          type: string
+        traceFileName:
+          type: string
+
+    TestResult:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        testId:
+          type: string
+        testName:
+          type: string
+        status:
+          type: string
+          enum: [PASSED, FAILED, SKIPPED, TIMEOUT]
+        duration:
+          type: number
+        retries:
+          type: integer
+        flakyAttempts:
+          type: integer
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        browser:
+          type: string
+        buildId:
+          type: string
+        commitHash:
+          type: string
+        branchName:
+          type: string
+        author:
+          type: string
+        traceUrl:
+          type: string
+        tracePath:
+          type: string
+
+    TestRun:
+      type: object
+      properties:
+        runId:
+          type: string
+        startTime:
+          type: string
+          format: date-time
+        endTime:
+          type: string
+          format: date-time
+        totalTests:
+          type: integer
+        passedTests:
+          type: integer
+        failedTests:
+          type: integer
+        skippedTests:
+          type: integer
+        totalDuration:
+          type: number
+        avgDuration:
+          type: number
+        passRate:
+          type: number
+        branchName:
+          type: string
+        commitHash:
+          type: string
+        author:
+          type: string

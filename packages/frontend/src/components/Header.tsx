@@ -10,6 +10,8 @@ interface HeaderProps {
 
 export default function Header({ theme, onToggleTheme }: HeaderProps) {
   const { user, isAuthenticated, logout } = useAuth();
+  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+  const swaggerDocsUrl = `${apiBaseUrl.replace(/\/+$/, '').replace(/\/api$/, '')}/api/docs`;
 
   return (
     <header className="bg-white border-b border-neutral-200 shadow-sm">
@@ -31,6 +33,14 @@ export default function Header({ theme, onToggleTheme }: HeaderProps) {
             className="text-neutral-600 hover:text-neutral-900"
           >
             Docs
+          </a>
+          <a
+            href={swaggerDocsUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-neutral-600 hover:text-neutral-900"
+          >
+            API Docs
           </a>
           <button
             type="button"
