@@ -4,6 +4,6 @@
     "buildCommand": "npm run install-all && npm run build"
   },
   "deploy": {
-    "startCommand": "npm run start"
+    "startCommand": "npm run start -w packages/backend"
   }
 }
