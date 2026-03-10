@@ -24,6 +24,11 @@ export interface TestResult {
   tracePath?: string; // Local path to trace file
   traceDataBase64?: string; // Base64 encoded trace zip (optional, for hosted viewing)
   traceFileName?: string; // Original trace zip file name
+  imagePath?: string; // Local path to screenshot/image artifact
+  imageDataBase64?: string; // Base64 encoded image artifact
+  imageFileName?: string; // Original image artifact file name
+  imageContentType?: string; // MIME type for image artifact
+  hasImage?: boolean; // Whether an image artifact exists for this test result
 }
 
 export interface TestSuite {

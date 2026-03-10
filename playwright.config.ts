@@ -40,9 +40,9 @@ export default defineConfig({
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: 'https://vijayravindran90.github.io/Test-analytics',
     /* Capture trace on first retry and on failure */
-    trace: 'retain-on-failure',
+    trace: 'on',
     /* Capture screenshot on failure */
-    screenshot: 'only-on-failure',
+    screenshot: 'on',
     /* Capture video on failure */
     video: 'retain-on-failure',
   },

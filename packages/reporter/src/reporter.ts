@@ -5,6 +5,13 @@ import fs from 'fs';
 import path from 'path';
 import type { TestResult as AnalyticsTestResult, TestSuite } from 'test-analytics-shared';
 
+type ReporterTestResult = AnalyticsTestResult & {
+  imagePath?: string;
+  imageDataBase64?: string;
+  imageFileName?: string;
+  imageContentType?: string;
+};
+
 interface ReporterConfig {
   backendUrl: string;
   projectId: string;
@@ -16,7 +23,7 @@ interface ReporterConfig {
 
 class PlaywrightAnalyticsReporter implements Reporter {
   private config: ReporterConfig;
-  private testResults: AnalyticsTestResult[] = [];
+  private testResults: ReporterTestResult[] = [];
   private startTime: Date = new Date();
   private testRetries: Map<string, number> = new Map();
   private testStartTimes: Map<string, Date> = new Map();
@@ -72,6 +79,10 @@ class PlaywrightAnalyticsReporter implements Reporter {
     let tracePath: string | undefined;
     let traceDataBase64: string | undefined;
     let traceFileName: string | undefined;
+    let imagePath: string | undefined;
+    let imageDataBase64: string | undefined;
+    let imageFileName: string | undefined;
+    let imageContentType: string | undefined;
     if (result.attachments && result.attachments.length > 0) {
       const traceAttachment = result.attachments.find(
         (a) => a.name === 'trace' && a.path
@@ -93,11 +104,32 @@ class PlaywrightAnalyticsReporter implements Reporter {
           console.warn(`[Analytics] Could not read trace file: ${traceAttachment.path}`, traceReadError);
         }
       }
+
+      const imageAttachment = result.attachments.find(
+        (a) => a.path && (a.contentType?.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(a.path || ''))
+      );
+      if (imageAttachment?.path) {
+        imagePath = imageAttachment.path;
+        imageFileName = path.basename(imageAttachment.path);
+        imageContentType = imageAttachment.contentType || 'image/png';
+
+        try {
+          const stat = fs.statSync(imageAttachment.path);
+          // Keep payload size bounded for screenshots.
+          if (stat.size <= 3 * 1024 * 1024) {
+            imageDataBase64 = fs.readFileSync(imageAttachment.path).toString('base64');
+          } else {
+            console.warn(`[Analytics] Image too large to upload (${Math.round(stat.size / 1024)} KB): ${imageAttachment.path}`);
+          }
+        } catch (imageReadError) {
+          console.warn(`[Analytics] Could not read image file: ${imageAttachment.path}`, imageReadError);
+        }
+      }
     } else if (result.status === 'failed' && this.config.enabled) {
       console.log(`[Analytics] No trace attachment found for failed test: ${test.title}. Enable traces in playwright.config.ts with: trace: 'retain-on-failure'`);
     }
 
-    const testAnalyticsResult: AnalyticsTestResult = {
+    const testAnalyticsResult: ReporterTestResult = {
       id: uuidv4(),
       projectId: this.config.projectId,
       projectName: this.config.projectName,
@@ -121,6 +153,10 @@ class PlaywrightAnalyticsReporter implements Reporter {
       tracePath,
       traceDataBase64,
       traceFileName,
+      imagePath,
+      imageDataBase64,
+      imageFileName,
+      imageContentType,
     };
 
     this.testResults.push(testAnalyticsResult);

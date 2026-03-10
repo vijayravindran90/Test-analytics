@@ -26,6 +26,11 @@ interface TestResult {
   tracePath?: string;
   traceDataBase64?: string;
   traceFileName?: string;
+  imagePath?: string;
+  imageDataBase64?: string;
+  imageFileName?: string;
+  imageContentType?: string;
+  hasImage?: boolean;
 }
 
 interface FlakyTest {
@@ -153,6 +158,32 @@ export class TestService {
             // If migration not applied yet, skip storing trace blobs without failing ingestion.
             if (!traceStoreError.message?.includes('relation "trace_files" does not exist')) {
               throw traceStoreError;
+            }
+          }
+        }
+
+        if (result.imageDataBase64) {
+          try {
+            await client.query(
+              `INSERT INTO image_files (id, test_result_id, file_name, content_type, content_base64)
+               VALUES ($1, $2, $3, $4, $5)
+               ON CONFLICT (test_result_id)
+               DO UPDATE SET
+                 file_name = EXCLUDED.file_name,
+                 content_type = EXCLUDED.content_type,
+                 content_base64 = EXCLUDED.content_base64`,
+              [
+                uuidv4(),
+                result.id,
+                result.imageFileName || 'screenshot.png',
+                result.imageContentType || 'image/png',
+                result.imageDataBase64,
+              ]
+            );
+          } catch (imageStoreError: any) {
+            // If migration not applied yet, skip storing images without failing ingestion.
+            if (!imageStoreError.message?.includes('relation "image_files" does not exist')) {
+              throw imageStoreError;
             }
           }
         }
@@ -627,16 +658,38 @@ export class TestService {
   async getTestsByRun(projectId: string, runId: string): Promise<TestResult[]> {
     // Get all tests from a specific run
     // runId can be either a build_id or a datetime string (from DATE_TRUNC)
-    let query = `
-      SELECT * FROM test_results 
-      WHERE project_id = $1 AND (
-        build_id = $2 OR 
-        DATE_TRUNC('minute', created_at)::text = $2
+    const queryWithImageFlag = `
+      SELECT tr.*,
+             EXISTS(
+               SELECT 1 FROM image_files img WHERE img.test_result_id = tr.id
+             ) AS has_image
+      FROM test_results tr
+      WHERE tr.project_id = $1 AND (
+        tr.build_id = $2 OR
+        DATE_TRUNC('minute', tr.created_at)::text = $2
       )
-      ORDER BY created_at DESC
+      ORDER BY tr.created_at DESC
     `;
-    
-    const result = await pool.query(query, [projectId, runId]);
+
+    let result;
+    try {
+      result = await pool.query(queryWithImageFlag, [projectId, runId]);
+    } catch (error: any) {
+      if (!error.message?.includes('relation "image_files" does not exist')) {
+        throw error;
+      }
+
+      // Backward-compatible fallback when image table is not available yet.
+      result = await pool.query(
+        `SELECT * FROM test_results
+         WHERE project_id = $1 AND (
+           build_id = $2 OR
+           DATE_TRUNC('minute', created_at)::text = $2
+         )
+         ORDER BY created_at DESC`,
+        [projectId, runId]
+      );
+    }
 
     return result.rows.map((row: any) => this.mapRowToTestResult(row));
   }
@@ -697,6 +750,33 @@ export class TestService {
     };
   }
 
+  async getImageFileByTestResultId(
+    testResultId: string
+  ): Promise<{ fileName: string; contentType: string; contentBase64: string } | null> {
+    let result;
+    try {
+      result = await pool.query(
+        `SELECT file_name, content_type, content_base64 FROM image_files WHERE test_result_id = $1 LIMIT 1`,
+        [testResultId]
+      );
+    } catch (error: any) {
+      if (error.message?.includes('relation "image_files" does not exist')) {
+        return null;
+      }
+      throw error;
+    }
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return {
+      fileName: result.rows[0].file_name || 'screenshot.png',
+      contentType: result.rows[0].content_type || 'image/png',
+      contentBase64: result.rows[0].content_base64,
+    };
+  }
+
   private mapRowToTestResult(row: any): TestResult {
     return {
       id: row.id,
@@ -721,6 +801,7 @@ export class TestService {
       author: row.author,
       traceUrl: row.trace_url,
       tracePath: row.trace_path,
+      hasImage: !!row.has_image,
     };
   }
 }

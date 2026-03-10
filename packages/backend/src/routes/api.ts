@@ -31,6 +31,10 @@ interface TestResult {
   tracePath?: string;
   traceDataBase64?: string;
   traceFileName?: string;
+  imagePath?: string;
+  imageDataBase64?: string;
+  imageFileName?: string;
+  imageContentType?: string;
 }
 
 interface DashboardData {
@@ -185,6 +189,10 @@ router.post('/tests/batch', async (req: Request, res: Response) => {
         tracePath: result.tracePath,
         traceDataBase64: result.traceDataBase64,
         traceFileName: result.traceFileName,
+        imagePath: result.imagePath,
+        imageDataBase64: result.imageDataBase64,
+        imageFileName: result.imageFileName,
+        imageContentType: result.imageContentType,
       };
     });
 
@@ -436,6 +444,30 @@ router.get('/traces/:testResultId/download', async (req: Request, res: Response)
   } catch (error) {
     console.error('Error serving trace file:', error);
     res.status(500).json({ error: 'Failed to serve trace file' });
+  }
+});
+
+// Serve stored image artifact for a test result
+router.get('/images/:testResultId/download', async (req: Request, res: Response) => {
+  try {
+    const { testResultId } = req.params;
+    const image = await testService.getImageFileByTestResultId(testResultId);
+
+    if (!image) {
+      return res.status(404).json({ error: 'Image not found' });
+    }
+
+    const buffer = Buffer.from(image.contentBase64, 'base64');
+
+    res.setHeader('Content-Type', image.contentType || 'image/png');
+    res.setHeader('Content-Disposition', `inline; filename="${image.fileName}"`);
+    res.setHeader('Content-Length', buffer.length.toString());
+    res.setHeader('Cache-Control', 'public, max-age=31536000');
+
+    res.send(buffer);
+  } catch (error) {
+    console.error('Error serving image file:', error);
+    res.status(500).json({ error: 'Failed to serve image file' });
   }
 });
 

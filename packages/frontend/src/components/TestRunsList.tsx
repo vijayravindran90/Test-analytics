@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Eye } from 'lucide-react';
+import { ChevronDown, ChevronRight, Eye, Image } from 'lucide-react';
 import { useTestRunDetails } from '../api/hooks';
 import apiClient from '../api/client';
 import { formatDuration, formatPercent } from '../utils/format';
@@ -43,6 +43,12 @@ export function TestRunsList({ projectId, projectName = 'Project', runs, loading
     const traceDownloadUrl = `${base}/traces/${encodeURIComponent(testResultId)}/download`;
     const viewerUrl = `https://trace.playwright.dev/?trace=${encodeURIComponent(traceDownloadUrl)}`;
     window.open(viewerUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const openImageViewer = (testResultId: string) => {
+    const base = (apiClient.defaults.baseURL || '').replace(/\/+$/, '');
+    const imageUrl = `${base}/images/${encodeURIComponent(testResultId)}/download`;
+    window.open(imageUrl, '_blank', 'noopener,noreferrer');
   };
 
   if (loading) {
@@ -162,7 +168,7 @@ export function TestRunsList({ projectId, projectName = 'Project', runs, loading
                                     Retries
                                   </th>
                                   <th className="px-6 py-3 text-left text-sm font-medium text-neutral-700">
-                                    Trace
+                                    Artifacts
                                   </th>
                                 </tr>
                               </thead>
@@ -202,21 +208,37 @@ export function TestRunsList({ projectId, projectName = 'Project', runs, loading
                                       {test.retries}
                                     </td>
                                     <td className="px-6 py-3 text-sm">
-                                      {test.status === 'FAILED' && (test.traceUrl || test.tracePath) ? (
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            openTraceViewer(test.id);
-                                          }}
-                                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition"
-                                          title="View trace"
-                                        >
-                                          <Eye className="w-3 h-3" />
-                                          View Trace
-                                        </button>
-                                      ) : (
-                                        <span className="text-xs text-neutral-400">—</span>
-                                      )}
+                                      <div className="flex items-center gap-2">
+                                        {test.status === 'FAILED' && (test.traceUrl || test.tracePath) ? (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openTraceViewer(test.id);
+                                            }}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-blue-700 bg-blue-50 rounded hover:bg-blue-100 transition"
+                                            title="View trace"
+                                          >
+                                            <Eye className="w-3 h-3" />
+                                            View Trace
+                                          </button>
+                                        ) : null}
+                                        {test.hasImage ? (
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              openImageViewer(test.id);
+                                            }}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-emerald-700 bg-emerald-50 rounded hover:bg-emerald-100 transition"
+                                            title="View image"
+                                          >
+                                            <Image className="w-3 h-3" />
+                                            View Image
+                                          </button>
+                                        ) : null}
+                                        {test.status !== 'FAILED' && !test.hasImage ? (
+                                          <span className="text-xs text-neutral-400">—</span>
+                                        ) : null}
+                                      </div>
                                     </td>
                                   </tr>
                                 ))}
