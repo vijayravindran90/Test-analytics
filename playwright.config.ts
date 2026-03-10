@@ -27,8 +27,8 @@ export default defineConfig({
       'test-analytics-reporter',
       {
         backendUrl: 'https://test-analytics-production.up.railway.app/api',
-        projectId: '296ff5f9-a0a5-46ac-8117-fb45c42e7e8e',
-        projectName: 'Playwright Test',
+        projectId: '3511d8db-dafa-4ffa-9be6-42d09eb58a02',
+        projectName: 'Demo 1',
         apiKey: process.env.API_KEY,
         enabled: true,
       },

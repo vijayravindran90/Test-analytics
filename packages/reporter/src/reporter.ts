@@ -118,6 +118,7 @@ class PlaywrightAnalyticsReporter implements Reporter {
           // Keep payload size bounded for screenshots.
           if (stat.size <= 3 * 1024 * 1024) {
             imageDataBase64 = fs.readFileSync(imageAttachment.path).toString('base64');
+            console.log(`[Analytics] Captured image file (${Math.round(stat.size / 1024)} KB) for test: ${test.title}`);
           } else {
             console.warn(`[Analytics] Image too large to upload (${Math.round(stat.size / 1024)} KB): ${imageAttachment.path}`);
           }
