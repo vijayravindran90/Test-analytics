@@ -209,7 +209,7 @@ export function TestRunsList({ projectId, projectName = 'Project', runs, loading
                                     </td>
                                     <td className="px-6 py-3 text-sm">
                                       <div className="flex items-center gap-2">
-                                        {test.status === 'FAILED' && (test.traceUrl || test.tracePath) ? (
+                                        {test.traceUrl || test.tracePath ? (
                                           <button
                                             onClick={(e) => {
                                               e.stopPropagation();
