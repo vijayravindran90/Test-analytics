@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Download } from 'lucide-react';
+import { ChevronLeft, Download, ChevronDown } from 'lucide-react';
 import { useDashboardData, useProject, useTestRuns } from '../api/hooks';
 import MetricCard from '../components/MetricCard';
 import FlakyTestsList from '../components/FlakyTestsList';
@@ -9,11 +9,14 @@ import { TrendChart, DurationChart, MetricsOverviewChart } from '../components/C
 import { TestRunsList } from '../components/TestRunsList';
 import { formatDuration, formatPercent } from '../utils/format';
 import type { TestResult } from 'test-analytics-shared';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 export default function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const [days, setDays] = useState(30);
+  const [isDownloadOpen, setIsDownloadOpen] = useState(false);
 
   if (!projectId) {
     return <div>Project not found</div>;
@@ -219,6 +222,268 @@ export default function ProjectDetail() {
     URL.revokeObjectURL(url);
   };
 
+  const downloadCsvReport = () => {
+    const now = new Date();
+    const safeFileBase = (project?.name || 'project-report').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+    const datePart = now.toISOString().split('T')[0];
+
+    const escapeCsv = (value: string | number | boolean | null | undefined): string => {
+      if (value === null || value === undefined) return '';
+      const stringValue = String(value);
+      if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }
+      return stringValue;
+    };
+
+    const csvContent = [
+      // Header Info
+      `Project Report - ${project?.name || 'Project'}`,
+      `Generated at,${now.toLocaleString()}`,
+      `Range,Last ${days} days`,
+      '',
+      // Metrics Summary
+      'METRICS SUMMARY',
+      `Metric,Value`,
+      `Pass Rate,${formatPercent(metrics.passRate)}`,
+      `Failure Rate,${formatPercent(metrics.failureRate)}`,
+      `Flakiness,${formatPercent(metrics.flakinessPercentage)}`,
+      `Stability,${formatPercent(metrics.stability)}`,
+      `Total Tests,${metrics.totalTests}`,
+      `Passed Tests,${metrics.passedTests}`,
+      `Failed Tests,${metrics.failedTests}`,
+      `Skipped Tests,${metrics.skippedTests}`,
+      `Average Duration,${formatDuration(metrics.avgDuration)}`,
+      `Total Duration,${formatDuration(metrics.totalDuration)}`,
+      '',
+      // Recent Tests
+      'RECENT TESTS',
+      'Test Name,Status,Duration,Retries,Browser',
+      ...recentTests.slice(0, 30).map(
+        (test: TestResult) =>
+          `${escapeCsv(test.testName)},${escapeCsv(test.status)},${formatDuration(test.duration)},${test.retries},${escapeCsv(test.browser || 'unknown')}`
+      ),
+      '',
+      // Flaky Tests
+      'FLAKY TESTS',
+      'Test Name,Flakiness Percentage,Total Runs,Trend',
+      ...flakyTests.slice(0, 20).map(
+        (test: any) =>
+          `${escapeCsv(test.testName)},${formatPercent(test.flakinessPercentage)},${test.totalRuns},${escapeCsv(test.trend || 'stable')}`
+      ),
+      '',
+      // Performance Alerts
+      'PERFORMANCE ALERTS',
+      'Test Name,Current Duration,Increase Percentage,Alerted At',
+      ...performanceAlerts.slice(0, 20).map(
+        (alert: any) =>
+          `${escapeCsv(alert.testName)},${formatDuration(alert.currentDuration)},${alert.percentageIncrease?.toFixed(2) || '0.00'}%,${new Date(alert.alertedAt).toLocaleString()}`
+      ),
+      '',
+      // Test Runs
+      'TEST RUNS',
+      'Run Start,Total Tests,Passed,Failed,Skipped,Pass Rate,Total Duration',
+      ...testRuns.slice(0, 30).map(
+        (run: any) =>
+          `${new Date(run.startTime).toLocaleString()},${run.totalTests},${run.passedTests},${run.failedTests},${run.skippedTests},${formatPercent(run.passRate)},${formatDuration(run.totalDuration)}`
+      ),
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${safeFileBase || 'project-report'}-${datePart}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadJsonReport = () => {
+    const now = new Date();
+    const safeFileBase = (project?.name || 'project-report').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+    const datePart = now.toISOString().split('T')[0];
+
+    const jsonData = {
+      project: {
+        name: project?.name,
+        description: project?.description,
+        projectId,
+      },
+      generatedAt: now.toISOString(),
+      timeRange: {
+        days,
+        period: `Last ${days} days`,
+      },
+      metrics: {
+        passRate: metrics.passRate,
+        failureRate: metrics.failureRate,
+        flakinessPercentage: metrics.flakinessPercentage,
+        stability: metrics.stability,
+        totalTests: metrics.totalTests,
+        passedTests: metrics.passedTests,
+        failedTests: metrics.failedTests,
+        skippedTests: metrics.skippedTests,
+        avgDuration: metrics.avgDuration,
+        totalDuration: metrics.totalDuration,
+      },
+      recentTests: recentTests.slice(0, 30).map((test: TestResult) => ({
+        testName: test.testName,
+        status: test.status,
+        duration: test.duration,
+        retries: test.retries,
+        browser: test.browser,
+      })),
+      flakyTests: flakyTests.slice(0, 20).map((test: any) => ({
+        testName: test.testName,
+        flakinessPercentage: test.flakinessPercentage,
+        totalRuns: test.totalRuns,
+        trend: test.trend,
+      })),
+      performanceAlerts: performanceAlerts.slice(0, 20).map((alert: any) => ({
+        testName: alert.testName,
+        currentDuration: alert.currentDuration,
+        percentageIncrease: alert.percentageIncrease,
+        alertedAt: alert.alertedAt,
+      })),
+      testRuns: testRuns.slice(0, 30).map((run: any) => ({
+        startTime: run.startTime,
+        totalTests: run.totalTests,
+        passedTests: run.passedTests,
+        failedTests: run.failedTests,
+        skippedTests: run.skippedTests,
+        passRate: run.passRate,
+        totalDuration: run.totalDuration,
+      })),
+      trends: transformedTrends,
+    };
+
+    const jsonContent = JSON.stringify(jsonData, null, 2);
+    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${safeFileBase || 'project-report'}-${datePart}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadPdfReport = async () => {
+    try {
+      const now = new Date();
+      const safeFileBase = (project?.name || 'project-report').toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '');
+      const datePart = now.toISOString().split('T')[0];
+      
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const safeProjectName = project?.name || 'Project';
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 15;
+      const lineHeight = 7;
+      let yPosition = margin;
+
+      const addNewPageIfNeeded = (heightNeeded: number) => {
+        if (yPosition + heightNeeded > pageHeight - margin) {
+          pdf.addPage();
+          yPosition = margin;
+        }
+      };
+
+      // Title
+      pdf.setFontSize(24);
+      pdf.text(`${safeProjectName} - Test Analytics Report`, margin, yPosition);
+      yPosition += 10;
+
+      // Generation Info
+      pdf.setFontSize(10);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Generated: ${now.toLocaleString()} | Range: Last ${days} days`, margin, yPosition);
+      yPosition += 8;
+      pdf.setTextColor(0, 0, 0);
+
+      // Metrics Summary
+      addNewPageIfNeeded(40);
+      pdf.setFontSize(14);
+      pdf.text('METRICS SUMMARY', margin, yPosition);
+      yPosition += 8;
+
+      pdf.setFontSize(10);
+      const metricsData = [
+        [`Pass Rate: ${formatPercent(metrics.passRate)}`, `Failure Rate: ${formatPercent(metrics.failureRate)}`],
+        [`Flakiness: ${formatPercent(metrics.flakinessPercentage)}`, `Stability: ${formatPercent(metrics.stability)}`],
+        [`Total Tests: ${metrics.totalTests}`, `Passed: ${metrics.passedTests}`],
+        [`Failed: ${metrics.failedTests}`, `Skipped: ${metrics.skippedTests}`],
+        [`Avg Duration: ${formatDuration(metrics.avgDuration)}`, `Total Duration: ${formatDuration(metrics.totalDuration)}`],
+      ];
+
+      for (const row of metricsData) {
+        addNewPageIfNeeded(lineHeight);
+        pdf.text(`  ${row[0]}`, margin, yPosition);
+        pdf.text(`  ${row[1]}`, margin + (pageWidth - 2 * margin) / 2, yPosition);
+        yPosition += lineHeight;
+      }
+
+      yPosition += 4;
+
+      // Recent Tests Table
+      addNewPageIfNeeded(30);
+      pdf.setFontSize(12);
+      pdf.text('RECENT TESTS (Top 10)', margin, yPosition);
+      yPosition += 8;
+
+      pdf.setFontSize(9);
+      const recentTestsSlice = recentTests.slice(0, 10);
+      for (const test of recentTestsSlice) {
+        addNewPageIfNeeded(lineHeight + 2);
+        pdf.text(`• ${test.testName} - ${test.status} (${formatDuration(test.duration)})`, margin + 5, yPosition);
+        yPosition += lineHeight;
+      }
+
+      // Flaky Tests
+      addNewPageIfNeeded(20);
+      yPosition += 4;
+      pdf.setFontSize(12);
+      pdf.text('FLAKY TESTS (Top 10)', margin, yPosition);
+      yPosition += 8;
+
+      pdf.setFontSize(9);
+      const flakyTestsSlice = flakyTests.slice(0, 10);
+      for (const test of flakyTestsSlice) {
+        addNewPageIfNeeded(lineHeight + 2);
+        pdf.text(`• ${test.testName} - Flakiness: ${formatPercent(test.flakinessPercentage)} (${test.totalRuns} runs)`, margin + 5, yPosition);
+        yPosition += lineHeight;
+      }
+
+      // Performance Alerts
+      addNewPageIfNeeded(20);
+      yPosition += 4;
+      pdf.setFontSize(12);
+      pdf.text('PERFORMANCE ALERTS (Top 10)', margin, yPosition);
+      yPosition += 8;
+
+      pdf.setFontSize(9);
+      const alertsSlice = performanceAlerts.slice(0, 10);
+      for (const alert of alertsSlice) {
+        addNewPageIfNeeded(lineHeight + 2);
+        pdf.text(`• ${alert.testName} - ${alert.percentageIncrease?.toFixed(2) || 0}% increase`, margin + 5, yPosition);
+        yPosition += lineHeight;
+      }
+
+      pdf.save(`${safeFileBase || 'project-report'}-${datePart}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF report');
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -238,14 +503,62 @@ export default function ProjectDetail() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={downloadHtmlReport}
-            className="inline-flex items-center gap-2 px-4 py-2 border rounded-lg bg-white hover:bg-neutral-50 transition"
-          >
-            <Download className="w-4 h-4" />
-            Download HTML
-          </button>
+          {/* Download Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsDownloadOpen(!isDownloadOpen)}
+              className="inline-flex items-center gap-2 px-4 py-2 border rounded-lg bg-white hover:bg-neutral-50 transition"
+            >
+              <Download className="w-4 h-4" />
+              Download
+              <ChevronDown className="w-4 h-4" />
+            </button>
+            {isDownloadOpen && (
+              <div className="absolute right-0 mt-1 w-40 bg-white border rounded-lg shadow-lg z-10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadHtmlReport();
+                    setIsDownloadOpen(false);
+                  }}
+                  className="block w-full text-left px-4 py-2 hover:bg-neutral-50 first:rounded-t-lg"
+                >
+                  📄 Download as HTML
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadCsvReport();
+                    setIsDownloadOpen(false);
+                  }}
+                  className="block w-full text-left px-4 py-2 hover:bg-neutral-50"
+                >
+                  📊 Download as CSV
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadJsonReport();
+                    setIsDownloadOpen(false);
+                  }}
+                  className="block w-full text-left px-4 py-2 hover:bg-neutral-50"
+                >
+                  🔗 Download as JSON
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadPdfReport();
+                    setIsDownloadOpen(false);
+                  }}
+                  className="block w-full text-left px-4 py-2 hover:bg-neutral-50 last:rounded-b-lg"
+                >
+                  📑 Download as PDF
+                </button>
+              </div>
+            )}
+          </div>
           <select
             value={days}
             onChange={(e) => setDays(parseInt(e.target.value))}
