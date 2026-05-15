@@ -17,6 +17,7 @@ export default function ProjectDetail() {
   const navigate = useNavigate();
   const [days, setDays] = useState(30);
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
+  const [isIntegrationOpen, setIsIntegrationOpen] = useState(false);
   const [slackWebhookUrl, setSlackWebhookUrl] = useState('');
   const [isSavingWebhook, setIsSavingWebhook] = useState(false);
   const [webhookSaveError, setWebhookSaveError] = useState<string | null>(null);
@@ -532,7 +533,10 @@ export default function ProjectDetail() {
           <div className="relative">
             <button
               type="button"
-              onClick={() => setIsDownloadOpen(!isDownloadOpen)}
+              onClick={() => {
+                setIsDownloadOpen(!isDownloadOpen);
+                setIsIntegrationOpen(false);
+              }}
               className="inline-flex items-center gap-2 px-4 py-2 border rounded-lg bg-white hover:bg-neutral-50 transition"
             >
               <Download className="w-4 h-4" />
@@ -540,7 +544,7 @@ export default function ProjectDetail() {
               <ChevronDown className="w-4 h-4" />
             </button>
             {isDownloadOpen && (
-              <div className="absolute right-0 mt-1 w-40 bg-white border rounded-lg shadow-lg z-10">
+              <div className="absolute right-0 mt-1 w-44 bg-white border rounded-lg shadow-lg z-10">
                 <button
                   type="button"
                   onClick={() => {
@@ -584,6 +588,16 @@ export default function ProjectDetail() {
               </div>
             )}
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              setIsIntegrationOpen(!isIntegrationOpen);
+              setIsDownloadOpen(false);
+            }}
+            className="inline-flex items-center justify-center px-4 py-2 border rounded-lg bg-white hover:bg-neutral-50 transition"
+          >
+            Integration
+          </button>
           <select
             value={days}
             onChange={(e) => setDays(parseInt(e.target.value))}
@@ -595,6 +609,37 @@ export default function ProjectDetail() {
           </select>
         </div>
       </div>
+
+      {isIntegrationOpen && (
+        <div className="card p-6 border border-neutral-200 bg-white shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-semibold">Slack Integration</h2>
+              <p className="text-sm text-neutral-600">Configure a Slack incoming webhook to receive performance alert notifications.</p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <label className="block text-sm font-medium text-neutral-700">Slack Webhook URL</label>
+            <input
+              type="url"
+              value={slackWebhookUrl}
+              onChange={(e) => setSlackWebhookUrl(e.target.value)}
+              className="w-full rounded-lg border border-neutral-300 px-4 py-2 focus:border-primary-500 focus:outline-none"
+              placeholder="https://hooks.slack.com/services/YOUR_TEAM_ID/YOUR_CHANNEL_ID/YOUR_WEBHOOK_TOKEN"
+            />
+            {webhookSaveError && <p className="text-sm text-danger-700">{webhookSaveError}</p>}
+            {webhookSaveSuccess && <p className="text-sm text-success-700">{webhookSaveSuccess}</p>}
+            <button
+              type="button"
+              onClick={saveSlackWebhook}
+              disabled={isSavingWebhook}
+              className="inline-flex items-center justify-center rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isSavingWebhook ? 'Saving...' : 'Save Slack Webhook'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -652,36 +697,6 @@ export default function ProjectDetail() {
           label="Total Test Duration"
           value={formatDuration(metrics.totalDuration)}
         />
-      </div>
-
-      {/* Slack Notifications */}
-      <div className="card p-6 border border-neutral-200 bg-white shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold">Slack Notifications</h2>
-            <p className="text-sm text-neutral-600">Configure a Slack incoming webhook to receive performance alert notifications.</p>
-          </div>
-        </div>
-        <div className="space-y-3">
-          <label className="block text-sm font-medium text-neutral-700">Slack Webhook URL</label>
-          <input
-            type="url"
-            value={slackWebhookUrl}
-            onChange={(e) => setSlackWebhookUrl(e.target.value)}
-            className="w-full rounded-lg border border-neutral-300 px-4 py-2 focus:border-primary-500 focus:outline-none"
-            placeholder="https://hooks.slack.com/services/YOUR_TEAM_ID/YOUR_CHANNEL_ID/YOUR_WEBHOOK_TOKEN"
-          />
-          {webhookSaveError && <p className="text-sm text-danger-700">{webhookSaveError}</p>}
-          {webhookSaveSuccess && <p className="text-sm text-success-700">{webhookSaveSuccess}</p>}
-          <button
-            type="button"
-            onClick={saveSlackWebhook}
-            disabled={isSavingWebhook}
-            className="inline-flex items-center justify-center rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isSavingWebhook ? 'Saving...' : 'Save Slack Webhook'}
-          </button>
-        </div>
       </div>
 
       {/* Charts */}

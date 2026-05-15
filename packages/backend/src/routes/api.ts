@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import { validate as validateUuid } from 'uuid';
 import testService from '../services/testService';
 import projectService from '../services/projectService';
 import pool from '../db';
@@ -142,7 +143,11 @@ router.post('/tests/batch', async (req: Request, res: Response) => {
     }
 
     // Ensure project exists
-    let project = await projectService.getProject(projectId);
+    let project = null;
+    if (projectId && validateUuid(projectId)) {
+      project = await projectService.getProject(projectId);
+    }
+
     if (!project) {
       project = await projectService.createProject(
         projectName || 'Unknown Project',

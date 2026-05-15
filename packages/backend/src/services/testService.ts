@@ -1,6 +1,6 @@
 import pool from '../db';
-import { v4 as uuidv4 } from 'uuid';
-import { sendSlackMessage } from '../utils/slack';
+import { v4 as uuidv4, validate as validateUuid } from 'uuid';
+import { getSlackChartUrl, sendSlackMessage } from '../utils/slack';
 
 interface TestResult {
   id: string;
@@ -77,6 +77,11 @@ export class TestService {
       await client.query('BEGIN');
 
       for (const result of results) {
+        const isResultIdValid = validateUuid(result.id || '');
+        if (!isResultIdValid) {
+          result.id = uuidv4();
+        }
+
         // Check if trace columns exist by trying to insert with them first
         // If they don't exist, fall back to insert without them
         try {
@@ -345,6 +350,8 @@ export class TestService {
     );
     const slackWebhookUrl = projectRes.rows[0]?.slack_webhook_url;
 
+    const alerts: string[] = [];
+
     for (const result of results) {
       if (result.duration > performanceThreshold) {
         const previousResult = await client.query(
@@ -376,24 +383,81 @@ export class TestService {
             ]
           );
 
-          if (slackWebhookUrl) {
-            try {
-              const slackMessage = `*Performance alert for project:* ${result.projectName}\n*Test:* ${result.testName}\n*Duration:* ${result.duration}ms\n*Threshold:* ${performanceThreshold}ms\n*Increase:* ${percentageIncrease.toFixed(2)}%${previousDuration ? `\n*Previous run:* ${previousDuration}ms` : ''}`;
-
-              await sendSlackMessage(slackWebhookUrl, slackMessage, [
-                {
-                  type: 'section',
-                  text: {
-                    type: 'mrkdwn',
-                    text: slackMessage,
-                  },
-                },
-              ]);
-            } catch (slackError: any) {
-              console.error('Error sending Slack alert:', slackError?.message || slackError);
-            }
-          }
+          alerts.push(
+            `*Test:* ${result.testName}  •  *Duration:* ${result.duration}ms  •  *Threshold:* ${performanceThreshold}ms  •  *Increase:* ${percentageIncrease.toFixed(2)}%`
+          );
         }
+      }
+    }
+
+    if (slackWebhookUrl && alerts.length > 0) {
+      try {
+        const totalTests = results.length;
+        const passedCount = results.filter((result) => result.status === 'PASSED').length;
+        const failedCount = results.filter((result) => result.status === 'FAILED').length;
+        const skippedCount = results.filter((result) => result.status === 'SKIPPED').length;
+        const flakyCount = results.filter((result) => result.flakyAttempts > 0).length;
+        const totalDuration = results.reduce((sum, result) => sum + result.duration, 0);
+
+        const passRate = totalTests ? (passedCount / totalTests) * 100 : 0;
+        const failureRate = totalTests ? (failedCount / totalTests) * 100 : 0;
+        const flakyRate = totalTests ? (flakyCount / totalTests) * 100 : 0;
+        const skippedRate = totalTests ? (skippedCount / totalTests) * 100 : 0;
+
+        const slackMessage = `*Performance alert for project:* ${results[0].projectName}\n` +
+          `*Alerts:* ${alerts.length} triggered\n` +
+          `*Total tests:* ${totalTests}  •  *Duration:* ${totalDuration}ms\n` +
+          `*Pass:* ${passRate.toFixed(1)}% (${passedCount})  •  *Fail:* ${failureRate.toFixed(1)}% (${failedCount})\n` +
+          `*Flaky:* ${flakyRate.toFixed(1)}% (${flakyCount})  •  *Skipped:* ${skippedRate.toFixed(1)}% (${skippedCount})`;
+
+        const chartConfig = {
+          type: 'doughnut',
+          data: {
+            labels: ['Passed', 'Failed', 'Flaky', 'Skipped'],
+            datasets: [
+              {
+                data: [passedCount, failedCount, flakyCount, skippedCount],
+                backgroundColor: ['#1f8e35', '#e63946', '#f4a261', '#6c757d'],
+              },
+            ],
+          },
+          options: {
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: {
+                  boxWidth: 12,
+                },
+              },
+              title: {
+                display: true,
+                text: `Test results: ${totalTests} total`,
+                font: {
+                  size: 18,
+                },
+              },
+            },
+          },
+        };
+
+        const chartUrl = getSlackChartUrl(chartConfig);
+
+        await sendSlackMessage(
+          slackWebhookUrl,
+          slackMessage,
+          [
+            {
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: slackMessage,
+              },
+            },
+          ],
+          chartUrl
+        );
+      } catch (slackError: any) {
+        console.error('Error sending Slack alert:', slackError?.message || slackError);
       }
     }
   }
