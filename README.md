@@ -536,10 +536,10 @@ For issues and questions:
 - [ ] Test comparison between branches
 - [ ] Custom metrics and KPIs
 - [ ] Multi-user authentication
-- [ ] Test result exports (PDF, Excel, JSON)
+- [x] Test result exports (PDF, Excel, JSON)
 - [ ] Performance profiling integration
 - [ ] Mobile app for alerts
-- [ ] Slack/Teams integration
+- [x] Slack/Teams integration
 - [ ] Test quality scoring
 
 ---
