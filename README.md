@@ -278,6 +278,7 @@ Track test duration regressions:
 - Percentage increase detection
 - Automatic threshold-based alerts
 - Alert timestamp and details
+- Optional Slack webhook notifications for performance alerts
 
 ### Trend Analysis
 
@@ -311,6 +312,10 @@ To enable analytics reporting in GitHub Actions:
 2. Commit the workflow file
 
 3. Push to trigger tests and automatic result reporting
+
+### Slack Alerts
+
+If you want alert delivery in Slack, configure a Slack incoming webhook in the dashboard project settings. Once set, performance regressions will post to your Slack channel with test name, duration, threshold, and percentage increase.
 
 ### GitLab CI
 

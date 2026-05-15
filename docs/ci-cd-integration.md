@@ -371,6 +371,17 @@ Set up notifications when:
 - Test duration increases
 - Performance regressions detected
 
+### Slack Notifications
+
+Configure a Slack incoming webhook at the project level in the analytics dashboard to receive alerts when performance thresholds are exceeded.
+
+1. Create a Slack incoming webhook in your Slack workspace.
+2. Open the project in the Test Analytics dashboard.
+3. Paste the webhook URL into the Slack Webhook field.
+4. Save the settings.
+
+Performance alerts will send a Slack message with the test name, current duration, threshold, and percentage increase.
+
 ### Export Reports
 
 Generate reports for:

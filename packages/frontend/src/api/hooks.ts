@@ -146,6 +146,11 @@ export function useProject(projectId: string) {
   return { project, loading, error };
 }
 
+export async function updateProject(projectId: string, updates: Record<string, unknown>) {
+  const response = await apiClient.put(`/projects/${projectId}`, updates);
+  return response.data;
+}
+
 export function useBrowserMetrics(projectId: string) {
   const [metrics, setMetrics] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

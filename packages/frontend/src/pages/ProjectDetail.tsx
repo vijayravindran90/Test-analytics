@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Download, ChevronDown } from 'lucide-react';
-import { useDashboardData, useProject, useTestRuns } from '../api/hooks';
+import { useDashboardData, useProject, useTestRuns, updateProject } from '../api/hooks';
 import MetricCard from '../components/MetricCard';
 import FlakyTestsList from '../components/FlakyTestsList';
 import PerformanceAlerts from '../components/PerformanceAlerts';
@@ -17,6 +17,10 @@ export default function ProjectDetail() {
   const navigate = useNavigate();
   const [days, setDays] = useState(30);
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
+  const [slackWebhookUrl, setSlackWebhookUrl] = useState('');
+  const [isSavingWebhook, setIsSavingWebhook] = useState(false);
+  const [webhookSaveError, setWebhookSaveError] = useState<string | null>(null);
+  const [webhookSaveSuccess, setWebhookSaveSuccess] = useState<string | null>(null);
 
   if (!projectId) {
     return <div>Project not found</div>;
@@ -25,6 +29,27 @@ export default function ProjectDetail() {
   const { project, loading: projectLoading } = useProject(projectId);
   const { data: dashboardData, loading: dataLoading, error } = useDashboardData(projectId, days);
   const { runs: testRuns, loading: runsLoading } = useTestRuns(projectId, 20);
+
+  React.useEffect(() => {
+    if (project?.slackWebhookUrl) {
+      setSlackWebhookUrl(project.slackWebhookUrl);
+    }
+  }, [project]);
+
+  const saveSlackWebhook = async () => {
+    setWebhookSaveError(null);
+    setWebhookSaveSuccess(null);
+    setIsSavingWebhook(true);
+
+    try {
+      await updateProject(projectId, { slackWebhookUrl: slackWebhookUrl.trim() || null });
+      setWebhookSaveSuccess('Slack webhook saved successfully.');
+    } catch (err: any) {
+      setWebhookSaveError(err?.response?.data?.error || err?.message || 'Failed to save Slack webhook');
+    } finally {
+      setIsSavingWebhook(false);
+    }
+  };
 
   if (projectLoading || dataLoading) {
     return (
@@ -627,6 +652,36 @@ export default function ProjectDetail() {
           label="Total Test Duration"
           value={formatDuration(metrics.totalDuration)}
         />
+      </div>
+
+      {/* Slack Notifications */}
+      <div className="card p-6 border border-neutral-200 bg-white shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Slack Notifications</h2>
+            <p className="text-sm text-neutral-600">Configure a Slack incoming webhook to receive performance alert notifications.</p>
+          </div>
+        </div>
+        <div className="space-y-3">
+          <label className="block text-sm font-medium text-neutral-700">Slack Webhook URL</label>
+          <input
+            type="url"
+            value={slackWebhookUrl}
+            onChange={(e) => setSlackWebhookUrl(e.target.value)}
+            className="w-full rounded-lg border border-neutral-300 px-4 py-2 focus:border-primary-500 focus:outline-none"
+            placeholder="https://hooks.slack.com/services/YOUR_TEAM_ID/YOUR_CHANNEL_ID/YOUR_WEBHOOK_TOKEN"
+          />
+          {webhookSaveError && <p className="text-sm text-danger-700">{webhookSaveError}</p>}
+          {webhookSaveSuccess && <p className="text-sm text-success-700">{webhookSaveSuccess}</p>}
+          <button
+            type="button"
+            onClick={saveSlackWebhook}
+            disabled={isSavingWebhook}
+            className="inline-flex items-center justify-center rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isSavingWebhook ? 'Saving...' : 'Save Slack Webhook'}
+          </button>
+        </div>
       </div>
 
       {/* Charts */}

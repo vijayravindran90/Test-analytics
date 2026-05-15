@@ -128,7 +128,8 @@ POST /api/projects
 {
   "name": "My Project",
   "description": "Optional description",
-  "owner": "Optional owner name"
+  "owner": "Optional owner name",
+  "slackWebhookUrl": "https://hooks.slack.com/services/YOUR_TEAM_ID/YOUR_CHANNEL_ID/YOUR_WEBHOOK_TOKEN"
 }
 ```
 
@@ -150,11 +151,14 @@ PUT /api/projects/:projectId
 {
   "name": "Updated name",
   "description": "Updated description",
-  "owner": "Updated owner"
+  "owner": "Updated owner",
+  "slackWebhookUrl": "https://hooks.slack.com/services/YOUR_TEAM_ID/YOUR_CHANNEL_ID/YOUR_WEBHOOK_TOKEN"
 }
 ```
 
 **Response:** Updated project object
+
+Project objects may also include an optional `slackWebhookUrl` field to route performance alerts to Slack.
 
 ### Delete Project
 

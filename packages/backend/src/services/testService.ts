@@ -1,5 +1,6 @@
 import pool from '../db';
 import { v4 as uuidv4 } from 'uuid';
+import { sendSlackMessage } from '../utils/slack';
 
 interface TestResult {
   id: string;
@@ -338,6 +339,12 @@ export class TestService {
   ): Promise<void> {
     const performanceThreshold = 5000; // 5 seconds - configurable
 
+    const projectRes = await client.query(
+      `SELECT slack_webhook_url FROM projects WHERE id = $1`,
+      [projectId]
+    );
+    const slackWebhookUrl = projectRes.rows[0]?.slack_webhook_url;
+
     for (const result of results) {
       if (result.duration > performanceThreshold) {
         const previousResult = await client.query(
@@ -368,6 +375,24 @@ export class TestService {
               percentageIncrease,
             ]
           );
+
+          if (slackWebhookUrl) {
+            try {
+              const slackMessage = `*Performance alert for project:* ${result.projectName}\n*Test:* ${result.testName}\n*Duration:* ${result.duration}ms\n*Threshold:* ${performanceThreshold}ms\n*Increase:* ${percentageIncrease.toFixed(2)}%${previousDuration ? `\n*Previous run:* ${previousDuration}ms` : ''}`;
+
+              await sendSlackMessage(slackWebhookUrl, slackMessage, [
+                {
+                  type: 'section',
+                  text: {
+                    type: 'mrkdwn',
+                    text: slackMessage,
+                  },
+                },
+              ]);
+            } catch (slackError: any) {
+              console.error('Error sending Slack alert:', slackError?.message || slackError);
+            }
+          }
         }
       }
     }

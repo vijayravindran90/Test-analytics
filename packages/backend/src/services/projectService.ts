@@ -6,19 +6,20 @@ interface Project {
   name: string;
   description?: string;
   owner?: string;
+  slackWebhookUrl?: string;
   userId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export class ProjectService {
-  async createProject(name: string, description?: string, owner?: string, userId?: string): Promise<Project> {
+  async createProject(name: string, description?: string, owner?: string, userId?: string, slackWebhookUrl?: string): Promise<Project> {
     const id = uuidv4();
     const result = await pool.query(
-      `INSERT INTO projects (id, name, description, owner, user_id)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO projects (id, name, description, owner, slack_webhook_url, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [id, name, description, owner, userId || null]
+      [id, name, description, owner, slackWebhookUrl || null, userId || null]
     );
 
     return this.mapProject(result.rows[0]);
@@ -61,11 +62,17 @@ export class ProjectService {
 
   async updateProject(
     projectId: string,
-    updates: { name?: string; description?: string; owner?: string },
+    updates: { name?: string; description?: string; owner?: string; slackWebhookUrl?: string | null },
     userId?: string
   ): Promise<Project> {
-    const allowedFields = ['name', 'description', 'owner'];
-    const fields = Object.keys(updates).filter(key => allowedFields.includes(key));
+    const fieldMap: Record<string, string> = {
+      name: 'name',
+      description: 'description',
+      owner: 'owner',
+      slackWebhookUrl: 'slack_webhook_url',
+    };
+
+    const fields = Object.keys(updates).filter(key => Object.keys(fieldMap).includes(key));
     
     if (fields.length === 0) {
       const project = await this.getProject(projectId, userId);
@@ -73,7 +80,7 @@ export class ProjectService {
       return project;
     }
 
-    const setClause = fields.map((field, i) => `${field} = $${i + 1}`).join(', ');
+    const setClause = fields.map((field, i) => `${fieldMap[field]} = $${i + 1}`).join(', ');
     const values = fields.map(field => updates[field as keyof typeof updates]);
 
     const result = await pool.query(
@@ -106,6 +113,7 @@ export class ProjectService {
       name: row.name,
       description: row.description,
       owner: row.owner,
+      slackWebhookUrl: row.slack_webhook_url,
       userId: row.user_id,
       createdAt: row.created_at,
       updatedAt: row.updated_at,

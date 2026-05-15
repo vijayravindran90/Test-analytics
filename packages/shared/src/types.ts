@@ -54,6 +54,7 @@ export interface Project {
   name: string;
   description?: string;
   owner?: string;
+  slackWebhookUrl?: string;
   createdAt: Date;
   updatedAt: Date;
 }

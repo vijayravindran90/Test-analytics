@@ -148,6 +148,17 @@ From the dashboard UI:
 ✅ **Performance Alerts**
 - Tests that exceed performance thresholds
 
+## Slack Integration (Optional)
+
+To receive performance alerts in Slack:
+
+1. Create a Slack incoming webhook in your workspace
+2. In the dashboard, go to your project settings
+3. Paste the webhook URL in the Slack Webhook field
+4. Save settings
+
+Performance regressions will now send notifications to your Slack channel.
+
 - Check [docs/architecture.md](../docs/architecture.md) to understand the system architecture
 - Check [CI/CD Integration](../docs/ci-cd-integration.md) for GitHub Actions, GitLab, Jenkins setup
 

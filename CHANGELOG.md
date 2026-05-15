@@ -2,6 +2,51 @@
 
 All notable changes to the Test Analytics Dashboard project are documented in this file.
 
+## [1.2.0] - 2024-03-10
+
+### ✨ New Features
+
+#### 📢 **Slack Integration for Performance Alerts**
+- Added Slack webhook support for real-time performance alert notifications
+- Configure webhook URLs per project in the dashboard settings
+- Automatic Slack messages when test duration thresholds are exceeded
+- Includes test name, current duration, threshold, and percentage increase in alerts
+
+**New Features:**
+- Slack webhook configuration in project settings UI
+- Database column `slack_webhook_url` added to projects table
+- Backend service for sending Slack webhook messages
+- Error handling for failed webhook deliveries
+
+### 🔄 **Database Migrations**
+
+#### Migration 007: Slack Webhook Support
+```sql
+-- Adds slack_webhook_url TEXT column to projects table
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS slack_webhook_url TEXT;
+```
+
+### 📦 **Dependencies Added**
+
+**Backend:**
+- `axios@^1.6.0` - HTTP client for Slack webhook requests
+
+### 📝 **Documentation Updates**
+
+- **README.md**: Added Slack integration section and updated roadmap
+- **QUICKSTART.md**: Added optional Slack setup steps
+- **docs/api.md**: Updated project creation/update endpoints with slackWebhookUrl field
+- **docs/ci-cd-integration.md**: Added Slack notification configuration guide
+- **docs/setup-reference.md**: Added Slack webhook setup instructions
+
+### 🚀 **Deployment Notes**
+
+- Run database migrations to add the new column: `npm run db:migrate`
+- Slack webhooks are optional - projects without webhook URLs continue to work normally
+- Webhook URLs follow Slack's standard format: `https://hooks.slack.com/services/...`
+
+---
+
 ## [1.1.0] - 2024-03-09
 
 ### ✨ Major Features
