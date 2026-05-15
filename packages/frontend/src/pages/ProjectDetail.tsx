@@ -19,6 +19,7 @@ export default function ProjectDetail() {
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
   const [isIntegrationOpen, setIsIntegrationOpen] = useState(false);
   const [slackWebhookUrl, setSlackWebhookUrl] = useState('');
+  const [isWebhookVisible, setIsWebhookVisible] = useState(false);
   const [isSavingWebhook, setIsSavingWebhook] = useState(false);
   const [webhookSaveError, setWebhookSaveError] = useState<string | null>(null);
   const [webhookSaveSuccess, setWebhookSaveSuccess] = useState<string | null>(null);
@@ -620,13 +621,22 @@ export default function ProjectDetail() {
           </div>
           <div className="space-y-3">
             <label className="block text-sm font-medium text-neutral-700">Slack Webhook URL</label>
-            <input
-              type="url"
-              value={slackWebhookUrl}
-              onChange={(e) => setSlackWebhookUrl(e.target.value)}
-              className="w-full rounded-lg border border-neutral-300 px-4 py-2 focus:border-primary-500 focus:outline-none"
-              placeholder="https://hooks.slack.com/services/YOUR_TEAM_ID/YOUR_CHANNEL_ID/YOUR_WEBHOOK_TOKEN"
-            />
+            <div className="relative">
+              <input
+                type={isWebhookVisible ? 'url' : 'password'}
+                value={slackWebhookUrl}
+                onChange={(e) => setSlackWebhookUrl(e.target.value)}
+                className="w-full rounded-lg border border-neutral-300 px-4 py-2 pr-24 focus:border-primary-500 focus:outline-none"
+                placeholder="https://hooks.slack.com/services/YOUR_TEAM_ID/YOUR_CHANNEL_ID/YOUR_WEBHOOK_TOKEN"
+              />
+              <button
+                type="button"
+                onClick={() => setIsWebhookVisible((visible) => !visible)}
+                className="absolute inset-y-0 right-0 inline-flex items-center px-3 text-sm font-medium text-neutral-600 hover:text-neutral-900"
+              >
+                {isWebhookVisible ? 'Hide' : 'Show'}
+              </button>
+            </div>
             {webhookSaveError && <p className="text-sm text-danger-700">{webhookSaveError}</p>}
             {webhookSaveSuccess && <p className="text-sm text-success-700">{webhookSaveSuccess}</p>}
             <button
