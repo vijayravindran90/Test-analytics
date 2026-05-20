@@ -91,7 +91,13 @@ If you're using GitHub Pages for frontend:
    VITE_API_URL=https://your-backend-service.up.railway.app/api
    ```
 
-2. Build and deploy:
+2. If you are using a custom domain, add a `CNAME` file to `packages/frontend/public` with the domain:
+   ```text
+   www.test-analytics.in
+   ```
+   GitHub Pages will publish this automatically from the built `dist` folder.
+
+3. Build and deploy:
    ```bash
    npm run build -w packages/frontend
    # Commit and push dist folder or use gh-pages
