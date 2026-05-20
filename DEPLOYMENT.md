@@ -97,9 +97,18 @@ If you're using GitHub Pages for frontend:
    ```
    GitHub Pages will publish this automatically from the built `dist` folder.
 
-3. Build and deploy:
+3. Build with the correct base path:
+   - For custom domain root publishing (recommended):
+     ```bash
+     npm run build -w packages/frontend
+     ```
+   - For GitHub Pages project page under `https://username.github.io/Test-analytics/`:
+     ```bash
+     VITE_BASE_URL=/Test-analytics/ npm run build -w packages/frontend
+     ```
+
+4. Deploy:
    ```bash
-   npm run build -w packages/frontend
    # Commit and push dist folder or use gh-pages
    ```
 
