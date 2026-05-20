@@ -38,7 +38,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'https://vijayravindran90.github.io/Test-analytics',
+    baseURL: 'https://www.test-analytics.in',
     /* Capture trace on first retry and on failure */
     trace: 'on',
     /* Capture screenshot on failure */

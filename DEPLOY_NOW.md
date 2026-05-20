@@ -7,7 +7,7 @@ Go to your Railway backend service → Variables tab and add:
 ```bash
 JWT_SECRET=<paste-output-below>
 NODE_ENV=production
-FRONTEND_URL=https://vijayravindran90.github.io
+FRONTEND_URL=https://www.test-analytics.in
 PORT=3001
 ```
 
@@ -51,7 +51,7 @@ Check Railway deployment logs for:
 
 ## 5. Test Production
 
-1. Open: https://vijayravindran90.github.io/Test-analytics/
+1. Open: https://www.test-analytics.in/
 2. Click "Login" → "Create account"
 3. Register with your email
 4. Create a project

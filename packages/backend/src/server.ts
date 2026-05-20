@@ -19,7 +19,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3002',
-  'https://vijayravindran90.github.io',
+  'https://www.test-analytics.in',
   'https://trace.playwright.dev'
 ];
 

@@ -121,7 +121,7 @@ Or for multiple origins, update `packages/backend/src/server.ts`:
 app.use(cors({
   origin: [
     'http://localhost:3000',
-    'https://vijayravindran90.github.io',
+    'https://www.test-analytics.in',
     'https://your-frontend.railway.app'
   ],
   credentials: true,
