@@ -8,12 +8,11 @@
     
     <!-- Start Single Page Apps for GitHub Pages -->
     <script type="text/javascript">
-      // Single Page Apps for GitHub Pages
-      // https://github.com/rafgraph/spa-github-pages
-      // This restores routes redirected by public/404.html for project pages.
+      // Single Page Apps for GitHub Pages on a custom domain root.
+      // When the site is served at the domain root, no path segment should be kept.
       (function(l) {
         if (l.search[1] === '/') {
-          var pathSegmentsToKeep = 1;
+          var pathSegmentsToKeep = 0;
           var decoded = l.search
             .slice(1)
             .split('&')
