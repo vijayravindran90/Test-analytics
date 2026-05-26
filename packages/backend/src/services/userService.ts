@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 import pool from '../db';
 
 interface User {
@@ -14,6 +15,8 @@ interface DbUserRow {
   id: string;
   email: string;
   password_hash: string;
+  api_key_prefix?: string;
+  api_key_hash?: string;
   name?: string;
   created_at: Date;
   updated_at: Date;
@@ -89,6 +92,55 @@ export class UserService {
     }
 
     return this.mapUser(result.rows[0]);
+  }
+
+  async generateApiKey(userId: string): Promise<string> {
+    const prefix = uuidv4().split('-')[0];
+    const secret = crypto.randomBytes(24).toString('hex');
+    const apiKey = `${prefix}.${secret}`;
+    const apiKeyHash = await bcrypt.hash(secret, 10);
+
+    await pool.query(
+      `UPDATE users
+       SET api_key_prefix = $1,
+           api_key_hash = $2,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3`,
+      [prefix, apiKeyHash, userId]
+    );
+
+    return apiKey;
+  }
+
+  async verifyApiKey(apiKey: string): Promise<User | null> {
+    const parts = apiKey.split('.');
+    if (parts.length !== 2) {
+      return null;
+    }
+
+    const [prefix, secret] = parts;
+    const result = await pool.query(
+      `SELECT id, email, name, api_key_hash, created_at, updated_at
+       FROM users
+       WHERE api_key_prefix = $1`,
+      [prefix]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const userRow = result.rows[0] as DbUserRow;
+    if (!userRow.api_key_hash) {
+      return null;
+    }
+
+    const isValid = await bcrypt.compare(secret, userRow.api_key_hash);
+    if (!isValid) {
+      return null;
+    }
+
+    return this.mapUser(userRow);
   }
 
   private mapUser(row: any): User {

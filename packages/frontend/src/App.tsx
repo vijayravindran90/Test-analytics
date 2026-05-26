@@ -5,6 +5,7 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
+import Integration from './pages/Integration';
 import Login from './pages/Login';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -38,6 +39,7 @@ function App() {
               <Route path="/" element={<Navigate to="/projects" replace />} />
               <Route path="/projects" element={<Projects />} />
               <Route path="/project/:projectId" element={<ProjectDetail />} />
+              <Route path="/integration" element={<Integration />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

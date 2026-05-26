@@ -4,7 +4,7 @@ import testService from '../services/testService';
 import projectService from '../services/projectService';
 import pool from '../db';
 import userService from '../services/userService';
-import { signAuthToken } from '../auth';
+import { signAuthToken, verifyAuthToken } from '../auth';
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth';
 
 interface TestResult {
@@ -133,6 +133,16 @@ router.get('/auth/me', requireAuth, async (req: AuthenticatedRequest, res: Respo
   }
 });
 
+router.post('/auth/api-key', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const apiKey = await userService.generateApiKey(req.user!.id);
+    res.status(201).json({ apiKey });
+  } catch (error) {
+    console.error('Error generating API key:', error);
+    res.status(500).json({ error: 'Failed to generate API key' });
+  }
+});
+
 // Save test results
 router.post('/tests/batch', async (req: Request, res: Response) => {
   try {
@@ -142,17 +152,38 @@ router.post('/tests/batch', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Results must be an array' });
     }
 
+    let apiUser: { id: string; email: string } | null = null;
+    const authHeader = req.headers.authorization;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : undefined;
+
+    if (token) {
+      try {
+        const payload = verifyAuthToken(token);
+        apiUser = { id: payload.userId, email: payload.email };
+      } catch {
+        const user = await userService.verifyApiKey(token);
+        if (!user) {
+          return res.status(401).json({ error: 'Invalid API key or token' });
+        }
+        apiUser = { id: user.id, email: user.email };
+      }
+    }
+
     // Ensure project exists
     let project = null;
     if (projectId && validateUuid(projectId)) {
       project = await projectService.getProject(projectId);
+      if (project && apiUser && project.userId && project.userId !== apiUser.id) {
+        return res.status(403).json({ error: 'Project does not belong to the authenticated user' });
+      }
     }
 
     if (!project) {
       project = await projectService.createProject(
         projectName || 'Unknown Project',
         'Auto-created from reporter upload',
-        'unknown'
+        'unknown',
+        apiUser?.id
       );
     }
 
