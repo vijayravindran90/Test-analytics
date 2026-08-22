@@ -11,6 +11,7 @@ interface User {
   avatarUrl?: string;
   plan: PlanId;
   subscriptionStatus?: string;
+  emailVerified: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -19,8 +20,12 @@ export interface AccessStatus {
   allowed: boolean;
   plan: PlanId;
   trialDaysLeft: number | null;
-  reason?: 'TRIAL_EXPIRED';
+  emailVerified: boolean;
+  reason?: 'TRIAL_EXPIRED' | 'EMAIL_NOT_VERIFIED';
 }
+
+const VERIFICATION_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
+const VERIFICATION_RESEND_COOLDOWN_MS = 60 * 1000;
 
 interface BillingProfile {
   id: string;
@@ -49,7 +54,7 @@ interface DbUserRow {
   updated_at: Date;
 }
 
-const USER_COLUMNS = `id, email, name, avatar_url, plan, subscription_status, created_at, updated_at`;
+const USER_COLUMNS = `id, email, name, avatar_url, plan, subscription_status, email_verified, created_at, updated_at`;
 
 export class UserService {
   async register(email: string, password: string, name?: string): Promise<User> {
@@ -73,7 +78,7 @@ export class UserService {
 
   async login(email: string, password: string): Promise<User | null> {
     const result = await pool.query(
-      `SELECT id, email, password_hash, name, avatar_url, plan, subscription_status, created_at, updated_at
+      `SELECT id, email, password_hash, name, avatar_url, plan, subscription_status, email_verified, created_at, updated_at
        FROM users
        WHERE email = $1`,
       [email.toLowerCase()]
@@ -113,10 +118,13 @@ export class UserService {
     );
 
     if (existingByEmail.rows.length > 0) {
+      // Google has already verified this email address, so linking also satisfies
+      // (and upgrades, if it wasn't already) our own email verification requirement.
       const linked = await pool.query(
         `UPDATE users
          SET google_id = $1,
              avatar_url = COALESCE($2, avatar_url),
+             email_verified = TRUE,
              updated_at = CURRENT_TIMESTAMP
          WHERE id = $3
          RETURNING ${USER_COLUMNS}`,
@@ -127,8 +135,8 @@ export class UserService {
 
     const id = uuidv4();
     const created = await pool.query(
-      `INSERT INTO users (id, email, password_hash, name, google_id, avatar_url)
-       VALUES ($1, $2, NULL, $3, $4, $5)
+      `INSERT INTO users (id, email, password_hash, name, google_id, avatar_url, email_verified)
+       VALUES ($1, $2, NULL, $3, $4, $5, TRUE)
        RETURNING ${USER_COLUMNS}`,
       [id, profile.email.toLowerCase(), profile.name, profile.googleId, profile.avatarUrl]
     );
@@ -243,17 +251,23 @@ export class UserService {
   }
 
   async getAccessStatus(userId: string): Promise<AccessStatus> {
-    const result = await pool.query(`SELECT plan, created_at FROM users WHERE id = $1`, [userId]);
+    const result = await pool.query(`SELECT plan, created_at, email_verified FROM users WHERE id = $1`, [userId]);
 
     if (result.rows.length === 0) {
-      return { allowed: false, plan: 'free', trialDaysLeft: 0, reason: 'TRIAL_EXPIRED' };
+      return { allowed: false, plan: 'free', trialDaysLeft: 0, emailVerified: false, reason: 'TRIAL_EXPIRED' };
     }
 
     const plan: PlanId = result.rows[0].plan || 'free';
+    const emailVerified = Boolean(result.rows[0].email_verified);
+
+    if (!emailVerified) {
+      return { allowed: false, plan, trialDaysLeft: null, emailVerified: false, reason: 'EMAIL_NOT_VERIFIED' };
+    }
+
     const planDefinition = getPlanById(plan);
 
     if (!planDefinition.trialDays) {
-      return { allowed: true, plan, trialDaysLeft: null };
+      return { allowed: true, plan, trialDaysLeft: null, emailVerified: true };
     }
 
     const createdAt = new Date(result.rows[0].created_at).getTime();
@@ -264,8 +278,57 @@ export class UserService {
       allowed: trialDaysLeft > 0,
       plan,
       trialDaysLeft,
+      emailVerified: true,
       reason: trialDaysLeft > 0 ? undefined : 'TRIAL_EXPIRED',
     };
+  }
+
+  async generateEmailVerificationToken(userId: string): Promise<string> {
+    const existing = await pool.query(`SELECT verification_email_sent_at FROM users WHERE id = $1`, [userId]);
+    const lastSentAt = existing.rows[0]?.verification_email_sent_at;
+    if (lastSentAt && Date.now() - new Date(lastSentAt).getTime() < VERIFICATION_RESEND_COOLDOWN_MS) {
+      throw new Error('A verification email was just sent. Please wait a minute before requesting another.');
+    }
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + VERIFICATION_TOKEN_TTL_MS);
+
+    await pool.query(
+      `UPDATE users
+       SET verification_token_hash = $1,
+           verification_token_expires_at = $2,
+           verification_email_sent_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = $3`,
+      [tokenHash, expiresAt, userId]
+    );
+
+    return rawToken;
+  }
+
+  async verifyEmailToken(rawToken: string): Promise<User | null> {
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    // Intentionally idempotent: the token stays valid until it naturally expires rather
+    // than being cleared on first use. Verification links are routinely pre-fetched by
+    // corporate email security scanners before the real user clicks them, and React's
+    // StrictMode double-invokes effects in dev - either would burn a strictly single-use
+    // token before the actual user ever completes verification.
+    const result = await pool.query(
+      `UPDATE users
+       SET email_verified = TRUE,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE verification_token_hash = $1 AND verification_token_expires_at > NOW()
+       RETURNING ${USER_COLUMNS}`,
+      [tokenHash]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    return this.mapUser(result.rows[0]);
   }
 
   async generateApiKey(userId: string): Promise<string> {
@@ -325,6 +388,7 @@ export class UserService {
       avatarUrl: row.avatar_url,
       plan: row.plan || 'free',
       subscriptionStatus: row.subscription_status,
+      emailVerified: Boolean(row.email_verified),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

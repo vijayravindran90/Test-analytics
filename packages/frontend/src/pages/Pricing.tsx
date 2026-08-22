@@ -14,7 +14,7 @@ export default function Pricing() {
           Upgrade anytime as your team grows.
         </p>
         <p className="mx-auto mt-2 max-w-xl text-sm text-neutral-500">
-          Already have an account? Choosing Free just signs you in with Google — it won't change an existing paid plan.
+          Already have an account? Choosing Free just signs you in — it won't change an existing paid plan.
         </p>
       </div>
 

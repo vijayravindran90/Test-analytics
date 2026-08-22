@@ -230,6 +230,7 @@ export interface SubscriptionInfo {
   hasBillingAccount: boolean;
   trialDaysLeft: number | null;
   accessAllowed: boolean;
+  emailVerified: boolean;
 }
 
 export function useSubscription() {

@@ -5,13 +5,14 @@ A comprehensive test reporting and analytics dashboard for Playwright tests, sim
 ## Key Features
 
 ### 🔐 User Authentication & Multi-Tenant Support (NEW in v1.1.0)
-- **Sign in with Google only**: The `/login` page only offers "Continue with Google" — no email/password form. Email/password endpoints still exist on the backend as a hidden fallback (see note below) but aren't reachable from the UI.
+- **Sign in with Google or email/password**: Both are shown on `/login` — "Continue with Google" plus a standard email/password sign in and registration form.
+- **Email verification required**: Whichever method is used, an account must have a verified email before it can create projects or view dashboards. Google accounts are verified automatically (Google itself asserts `email_verified`); email/password accounts get a verification link sent to their inbox and are gated until they click it.
 - **Pricing-first signup**: `/login` requires a `?plan=` value; visiting it directly (or via the header's "Get Started" button) redirects to `/pricing` first, so signing in always starts from plan selection.
 - **JWT-Based Authentication**: Secure stateless authentication with 7-day token expiry
 - **Project Isolation**: Each user's projects and test data are completely isolated
 - **Per-User Project Namespacing**: Same project name can exist across different user profiles
 
-> **Deployment note**: Google sign-in requires `GOOGLE_CLIENT_ID` / `VITE_GOOGLE_CLIENT_ID` to be configured (see below) — until then, nobody can sign in from the UI. The email/password API routes are intentionally left enabled server-side as a break-glass fallback; they are not linked from anywhere in the app.
+> **Deployment note**: Google sign-in requires `GOOGLE_CLIENT_ID` / `VITE_GOOGLE_CLIENT_ID` to be configured (see below) to show up as an option — email/password works without any extra setup. Without SMTP credentials configured, verification emails are logged to the backend console instead of actually sent (see below) — fine for local testing, not for real users.
 
 ### 💳 Public Landing Page, Pricing & Free Trial
 - **Marketing Home Page**: Public landing page with product overview and feature highlights for visitors who aren't signed in
@@ -124,7 +125,24 @@ VITE_GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
    - `packages/frontend/.env` → `VITE_GOOGLE_CLIENT_ID`
 4. Restart both servers. A "Continue with Google" button will appear on the login page automatically; it stays hidden until the client ID is configured.
 
-Google users are matched to an existing account by email if one already exists, otherwise a new account is created automatically.
+Google users are matched to an existing account by email if one already exists, otherwise a new account is created automatically. Signing in with Google always marks the account's email as verified, since Google has already confirmed it.
+
+### Optional: Set Up Email Verification (SMTP)
+
+Every account — Google or email/password — must have a verified email before it can create projects or view dashboards. Google accounts are verified automatically; email/password accounts need an actual email sent.
+
+1. Get SMTP credentials from any provider (e.g. SendGrid, Postmark, Amazon SES, or even a Gmail app password for testing).
+2. Add to `packages/backend/.env`:
+   ```ini
+   SMTP_HOST=smtp.your-provider.com
+   SMTP_PORT=587
+   SMTP_USER=your-smtp-username
+   SMTP_PASS=your-smtp-password
+   EMAIL_FROM=Test Analytics <no-reply@your-domain.com>
+   ```
+3. Restart the backend. New registrations will now receive a real verification email instead of having the link logged to the server console.
+
+Without SMTP configured, verification links are printed to the backend's console log (`[email] SMTP not configured — verification link for ...`) so you can still test the flow locally by copying the link from the logs.
 
 ### Optional: Set Up Stripe Billing
 
@@ -168,7 +186,8 @@ Starting with v1.1.0, the dashboard requires user authentication. All test data 
 1. Open the dashboard at `http://localhost:3000`
 2. Click **"Get Started"** in the top right — this takes you to `/pricing` first
 3. Choose a plan (Free starts a 14-day trial; Pro/Team go to Stripe Checkout after sign-in)
-4. Click **"Continue with Google"** and authorize with your Google account — this creates your account automatically on first sign-in
+4. Sign in either with **"Continue with Google"**, or register with your email and password
+5. If you registered with email/password, check your inbox for a verification link — you won't be able to create projects or view dashboards until you click it (Google sign-in skips this step, since Google already verified your email)
 
 ### 2. Create a Project
 
@@ -256,7 +275,15 @@ curl -H "Authorization: Bearer YOUR_JWT_TOKEN" http://localhost:3001/api/project
 
 - `POST /api/auth/google` - Sign in (or register) with a Google ID token
   - Body: `{ idToken }` (from Google Identity Services on the frontend)
-  - Returns: `{ token, user: { id, email, name } }`
+  - Returns: `{ token, user: { id, email, name } }` — `emailVerified` is always `true` for Google accounts
+
+- `POST /api/auth/verify-email` - Verify an email/password account using the token from its verification email
+  - Body: `{ token }`
+  - Returns: `{ token, user }` (logs the user in immediately on success)
+
+- `POST /api/auth/resend-verification` - Resend the verification email for the current account
+  - Requires: Bearer token
+  - Rate-limited to one send per minute; returns `429` if called again too soon
 
 ### Billing
 
@@ -268,7 +295,11 @@ curl -H "Authorization: Bearer YOUR_JWT_TOKEN" http://localhost:3001/api/project
 - `POST /api/billing/portal` - Create a Stripe customer portal session for the current user
   - Returns: `{ url }` to redirect the browser to
 
-All project-data endpoints (dashboard, metrics, module heatmap, etc.) and `POST /api/projects` return `402 { error, code: 'TRIAL_EXPIRED' }` once a Free-plan user's trial has ended. The frontend's axios client redirects to `/billing` automatically on a 402.
+All project-data endpoints (dashboard, metrics, module heatmap, etc.) and `POST /api/projects` are gated by the same access check:
+- `403 { error, code: 'EMAIL_NOT_VERIFIED' }` if the account's email isn't verified yet (checked before the trial, regardless of plan)
+- `402 { error, code: 'TRIAL_EXPIRED' }` once a Free-plan user's trial has ended
+
+The frontend's axios client redirects to `/billing` automatically on a 402; a 403 with that code surfaces the persistent "verify your email" banner instead.
 - `POST /api/billing/webhook` - Stripe webhook receiver (called by Stripe, not the frontend)
 
 ### Projects

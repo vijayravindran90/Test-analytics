@@ -56,7 +56,7 @@ export default function Landing() {
             View pricing
           </Link>
         </div>
-        <p className="mt-4 text-sm text-neutral-500">14-day free trial. No credit card required. Sign in with Google.</p>
+        <p className="mt-4 text-sm text-neutral-500">14-day free trial. No credit card required.</p>
       </section>
 
       <section>
@@ -92,7 +92,7 @@ export default function Landing() {
       <section className="card p-10 text-center">
         <h2 className="text-3xl font-bold">Ready to see your test suite clearly?</h2>
         <p className="mx-auto mt-3 max-w-xl text-neutral-600">
-          Pick a plan and sign in with Google to spin up your first project in minutes.
+          Pick a plan and sign in with Google or your email to spin up your first project in minutes.
         </p>
         <Link to="/pricing" className="btn btn-primary mt-6 inline-flex px-6 py-3 text-base">
           Choose a plan to get started

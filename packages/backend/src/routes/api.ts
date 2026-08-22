@@ -9,6 +9,7 @@ import { signAuthToken, verifyAuthToken } from '../auth';
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth';
 import { isGoogleSignInConfigured, verifyGoogleIdToken } from '../services/googleAuth';
 import { createCheckoutSession, createPortalSession, isStripeConfigured } from '../services/billingService';
+import { sendVerificationEmail } from '../services/emailService';
 
 interface TestResult {
   id: string;
@@ -52,11 +53,26 @@ interface DashboardData {
 const router = express.Router();
 
 const TRIAL_EXPIRED_MESSAGE = 'Your free trial has ended. Upgrade your plan to keep using Test Analytics.';
+const EMAIL_NOT_VERIFIED_MESSAGE = 'Please verify your email address to continue.';
+
+function frontendUrl(): string {
+  return process.env.FRONTEND_URL || 'http://localhost:3000';
+}
+
+async function sendEmailVerification(userId: string, email: string): Promise<void> {
+  const token = await userService.generateEmailVerificationToken(userId);
+  const verifyUrl = `${frontendUrl()}/#/verify-email?token=${token}`;
+  await sendVerificationEmail(email, verifyUrl);
+}
 
 async function ensureActiveSubscription(userId: string, res: Response): Promise<boolean> {
   const accessStatus = await userService.getAccessStatus(userId);
   if (!accessStatus.allowed) {
-    res.status(402).json({ error: TRIAL_EXPIRED_MESSAGE, code: accessStatus.reason || 'TRIAL_EXPIRED' });
+    if (accessStatus.reason === 'EMAIL_NOT_VERIFIED') {
+      res.status(403).json({ error: EMAIL_NOT_VERIFIED_MESSAGE, code: 'EMAIL_NOT_VERIFIED' });
+    } else {
+      res.status(402).json({ error: TRIAL_EXPIRED_MESSAGE, code: accessStatus.reason || 'TRIAL_EXPIRED' });
+    }
     return false;
   }
   return true;
@@ -99,6 +115,14 @@ router.post('/auth/register', async (req: Request, res: Response) => {
     const user = await userService.register(String(email), String(password), name ? String(name) : undefined);
     const token = signAuthToken({ userId: user.id, email: user.email });
 
+    try {
+      await sendEmailVerification(user.id, user.email);
+    } catch (emailError) {
+      // Don't fail registration if the verification email couldn't be sent - the
+      // user can request another one from the "resend verification" prompt.
+      console.error('Error sending verification email:', emailError);
+    }
+
     res.status(201).json({
       token,
       user,
@@ -110,6 +134,49 @@ router.post('/auth/register', async (req: Request, res: Response) => {
 
     console.error('Error registering user:', error);
     res.status(500).json({ error: 'Failed to register user' });
+  }
+});
+
+router.post('/auth/verify-email', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ error: 'Verification token is required' });
+    }
+
+    const user = await userService.verifyEmailToken(String(token));
+    if (!user) {
+      return res.status(400).json({ error: 'This verification link is invalid or has expired.' });
+    }
+
+    const authToken = signAuthToken({ userId: user.id, email: user.email });
+    res.json({ token: authToken, user });
+  } catch (error) {
+    console.error('Error verifying email:', error);
+    res.status(500).json({ error: 'Failed to verify email' });
+  }
+});
+
+router.post('/auth/resend-verification', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const user = await userService.getUserById(req.user!.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (user.emailVerified) {
+      return res.json({ success: true, alreadyVerified: true });
+    }
+
+    await sendEmailVerification(user.id, user.email);
+    res.json({ success: true });
+  } catch (error: any) {
+    if (error?.message?.includes('just sent')) {
+      return res.status(429).json({ error: error.message });
+    }
+
+    console.error('Error resending verification email:', error);
+    res.status(500).json({ error: 'Failed to resend verification email' });
   }
 });
 
@@ -204,6 +271,7 @@ router.get('/billing/subscription', requireAuth, async (req: AuthenticatedReques
       hasBillingAccount: Boolean(profile.stripeCustomerId),
       trialDaysLeft: accessStatus.trialDaysLeft,
       accessAllowed: accessStatus.allowed,
+      emailVerified: accessStatus.emailVerified,
     });
   } catch (error) {
     console.error('Error fetching subscription:', error);
