@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import crypto from 'crypto';
 import pool from '../db';
-import { PlanId } from 'test-analytics-shared';
+import { PlanId, getPlanById } from 'test-analytics-shared';
 
 interface User {
   id: string;
@@ -13,6 +13,13 @@ interface User {
   subscriptionStatus?: string;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface AccessStatus {
+  allowed: boolean;
+  plan: PlanId;
+  trialDaysLeft: number | null;
+  reason?: 'TRIAL_EXPIRED';
 }
 
 interface BillingProfile {
@@ -233,6 +240,32 @@ export class UserService {
        WHERE id = $5`,
       [updates.plan, updates.stripeSubscriptionId || null, updates.subscriptionStatus || null, updates.currentPeriodEnd || null, userId]
     );
+  }
+
+  async getAccessStatus(userId: string): Promise<AccessStatus> {
+    const result = await pool.query(`SELECT plan, created_at FROM users WHERE id = $1`, [userId]);
+
+    if (result.rows.length === 0) {
+      return { allowed: false, plan: 'free', trialDaysLeft: 0, reason: 'TRIAL_EXPIRED' };
+    }
+
+    const plan: PlanId = result.rows[0].plan || 'free';
+    const planDefinition = getPlanById(plan);
+
+    if (!planDefinition.trialDays) {
+      return { allowed: true, plan, trialDaysLeft: null };
+    }
+
+    const createdAt = new Date(result.rows[0].created_at).getTime();
+    const daysSinceSignup = (Date.now() - createdAt) / (1000 * 60 * 60 * 24);
+    const trialDaysLeft = Math.max(0, Math.ceil(planDefinition.trialDays - daysSinceSignup));
+
+    return {
+      allowed: trialDaysLeft > 0,
+      plan,
+      trialDaysLeft,
+      reason: trialDaysLeft > 0 ? undefined : 'TRIAL_EXPIRED',
+    };
   }
 
   async generateApiKey(userId: string): Promise<string> {

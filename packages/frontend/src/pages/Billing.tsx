@@ -1,36 +1,13 @@
-import React, { useEffect, useState } from 'react';
-import { PlanDefinition } from 'test-analytics-shared';
+import React, { useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import apiClient from '../api/client';
 import PricingPlans from '../components/PricingPlans';
-
-interface SubscriptionInfo {
-  plan: PlanDefinition;
-  subscriptionStatus?: string;
-  currentPeriodEnd?: string;
-  hasBillingAccount: boolean;
-}
+import { useSubscription } from '../api/hooks';
 
 export default function Billing() {
-  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { subscription, loading, error: loadError } = useSubscription();
   const [error, setError] = useState<string | null>(null);
   const [openingPortal, setOpeningPortal] = useState(false);
-
-  useEffect(() => {
-    const fetchSubscription = async () => {
-      try {
-        setLoading(true);
-        const response = await apiClient.get('/billing/subscription');
-        setSubscription(response.data);
-      } catch (err: any) {
-        setError(err?.response?.data?.error || 'Unable to load your subscription');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchSubscription();
-  }, []);
 
   const handleManageBilling = async () => {
     setOpeningPortal(true);
@@ -62,6 +39,13 @@ export default function Billing() {
                   Renews on {new Date(subscription.currentPeriodEnd).toLocaleDateString()}
                 </p>
               )}
+              {subscription.trialDaysLeft !== null && (
+                <p className={`mt-1 text-sm font-medium ${subscription.accessAllowed ? 'text-neutral-600' : 'text-danger-600'}`}>
+                  {subscription.accessAllowed
+                    ? `${subscription.trialDaysLeft} day${subscription.trialDaysLeft === 1 ? '' : 's'} left in your free trial`
+                    : 'Your free trial has ended'}
+                </p>
+              )}
             </div>
             {subscription.hasBillingAccount && (
               <button
@@ -75,13 +59,20 @@ export default function Billing() {
             )}
           </div>
         ) : null}
-        {error && <p className="mt-3 text-sm text-danger-600">{error}</p>}
+        {(error || loadError) && <p className="mt-3 text-sm text-danger-600">{error || loadError}</p>}
       </div>
+
+      {subscription && !subscription.accessAllowed && (
+        <div className="flex items-start gap-3 rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-700">
+          <AlertTriangle className="mt-0.5 h-5 w-5 flex-shrink-0" />
+          <p>Your free trial has ended. Choose a paid plan below to keep using your dashboards and projects.</p>
+        </div>
+      )}
 
       <div>
         <h2 className="text-xl font-semibold">Change your plan</h2>
         <div className="mt-4">
-          <PricingPlans currentPlan={subscription?.plan.id} />
+          <PricingPlans currentPlan={subscription?.plan.id as any} />
         </div>
       </div>
     </div>

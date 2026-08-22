@@ -19,7 +19,7 @@ export default function PricingPlans({ currentPlan }: PricingPlansProps) {
     setError(null);
 
     if (!isAuthenticated) {
-      navigate(planId === 'free' ? '/login' : `/login?plan=${planId}`);
+      navigate(`/login?plan=${planId}`);
       return;
     }
 
@@ -88,7 +88,7 @@ export default function PricingPlans({ currentPlan }: PricingPlansProps) {
                   : pendingPlan === plan.id
                   ? 'Redirecting...'
                   : plan.priceMonthly === 0
-                  ? 'Get started free'
+                  ? 'Start free trial'
                   : `Choose ${plan.name}`}
               </button>
             </div>

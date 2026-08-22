@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Navigate, useLocation, useSearchParams } from 'react-router-dom';
+import { Navigate, useLocation, useSearchParams, Link } from 'react-router-dom';
+import { getPlanById } from 'test-analytics-shared';
 import { useAuth } from '../auth/AuthContext';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 import apiClient from '../api/client';
@@ -46,123 +47,50 @@ function PostLoginCheckoutRedirect({ planId, fallbackPath }: { planId: string; f
 }
 
 export default function Login() {
-  const { isAuthenticated, login, register } = useAuth();
+  const { isAuthenticated } = useAuth();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const planId = searchParams.get('plan');
-  const [mode, setMode] = useState<'login' | 'register'>(planId ? 'register' : 'login');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+
+  // Signing in always starts from the pricing page so a plan is chosen first.
+  if (!planId) {
+    return <Navigate to="/pricing" replace />;
+  }
 
   if (isAuthenticated) {
     const redirectPath = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/projects';
-    if (planId && planId !== 'free') {
+    if (planId !== 'free') {
       return <PostLoginCheckoutRedirect planId={planId} fallbackPath={redirectPath} />;
     }
     return <Navigate to={redirectPath} replace />;
   }
 
-  const onSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      if (mode === 'login') {
-        await login(email, password);
-      } else {
-        await register(email, password, name || undefined);
-      }
-    } catch (submitError: any) {
-      setError(submitError?.response?.data?.error || 'Authentication failed');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const plan = getPlanById(planId);
 
   return (
     <div className="mx-auto max-w-md card p-6">
-      <h1 className="text-2xl font-bold text-neutral-900">
-        {mode === 'login' ? 'Sign in to your dashboard' : 'Create your profile'}
-      </h1>
+      <h1 className="text-2xl font-bold text-neutral-900">Continue with Google</h1>
       <p className="mt-2 text-sm text-neutral-600">
-        {mode === 'login'
-          ? 'Use your account to access only your projects and dashboards.'
-          : 'Create an account to keep dashboards private to your profile.'}
+        Sign in with your Google account to {plan.priceMonthly === 0 ? 'start your free trial' : `subscribe to the ${plan.name} plan`}
+        . New here? Signing in creates your account automatically.
       </p>
 
-      {planId && planId !== 'free' && (
-        <div className="mt-4 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
-          You'll continue straight to checkout for the <strong className="capitalize">{planId}</strong> plan after signing
-          in.
-        </div>
-      )}
+      <div className="mt-4 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
+        Selected plan: <strong>{plan.name}</strong>
+        {plan.priceMonthly > 0 ? ` ($${plan.priceMonthly}/month)` : ' (14-day free trial)'}
+      </div>
 
       <div className="mt-6">
         <GoogleSignInButton />
       </div>
 
-      <div className="mt-6 flex items-center gap-3 text-xs uppercase text-neutral-400">
-        <div className="h-px flex-1 bg-neutral-200" />
-        <span>Or use your email</span>
-        <div className="h-px flex-1 bg-neutral-200" />
-      </div>
+      <p className="mt-6 text-center text-xs text-neutral-500">
+        We only support signing in with Google right now.
+      </p>
 
-      <form onSubmit={onSubmit} className="mt-6 space-y-4">
-        {mode === 'register' && (
-          <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">Name</label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="Your name"
-            />
-          </div>
-        )}
-
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">Email</label>
-          <input
-            type="email"
-            required
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            placeholder="you@example.com"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-neutral-700 mb-1">Password</label>
-          <input
-            type="password"
-            required
-            minLength={8}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            placeholder="Minimum 8 characters"
-          />
-        </div>
-
-        {error && <div className="p-3 rounded-lg border border-danger-200 bg-danger-50 text-danger-700">{error}</div>}
-
-        <button type="submit" disabled={loading} className="btn btn-primary w-full">
-          {loading ? 'Please wait...' : mode === 'login' ? 'Sign In' : 'Create Account'}
-        </button>
-      </form>
-
-      <button
-        type="button"
-        onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-        className="mt-4 text-sm text-primary-600 hover:text-primary-700"
-      >
-        {mode === 'login' ? 'Need an account? Create one' : 'Already have an account? Sign in'}
-      </button>
+      <Link to="/pricing" className="mt-4 block text-center text-sm text-primary-600 hover:text-primary-700">
+        Choose a different plan
+      </Link>
     </div>
   );
 }

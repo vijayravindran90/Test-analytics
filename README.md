@@ -5,15 +5,18 @@ A comprehensive test reporting and analytics dashboard for Playwright tests, sim
 ## Key Features
 
 ### 🔐 User Authentication & Multi-Tenant Support (NEW in v1.1.0)
-- **User Registration & Login**: Create secure accounts with email and password
-- **Sign in with Google**: One-click sign-in using a Google account (optional, see setup below)
+- **Sign in with Google only**: The `/login` page only offers "Continue with Google" — no email/password form. Email/password endpoints still exist on the backend as a hidden fallback (see note below) but aren't reachable from the UI.
+- **Pricing-first signup**: `/login` requires a `?plan=` value; visiting it directly (or via the header's "Get Started" button) redirects to `/pricing` first, so signing in always starts from plan selection.
 - **JWT-Based Authentication**: Secure stateless authentication with 7-day token expiry
 - **Project Isolation**: Each user's projects and test data are completely isolated
 - **Per-User Project Namespacing**: Same project name can exist across different user profiles
 
-### 💳 Public Landing Page & Pricing
+> **Deployment note**: Google sign-in requires `GOOGLE_CLIENT_ID` / `VITE_GOOGLE_CLIENT_ID` to be configured (see below) — until then, nobody can sign in from the UI. The email/password API routes are intentionally left enabled server-side as a break-glass fallback; they are not linked from anywhere in the app.
+
+### 💳 Public Landing Page, Pricing & Free Trial
 - **Marketing Home Page**: Public landing page with product overview and feature highlights for visitors who aren't signed in
-- **Pricing Plans**: Free / Pro / Team tiers with per-plan project limits, shown on `/pricing` and reused on the in-app billing page
+- **Pricing Plans**: Free (14-day trial) / Pro / Team tiers with per-plan project limits, shown on `/pricing` and reused on the in-app billing page
+- **14-Day Free Trial**: The Free plan is time-limited (`FREE_TRIAL_DAYS` in `packages/shared/src/plans.ts`). A banner shows days remaining; once it expires, project dashboards and project creation are blocked (HTTP 402) until the user upgrades. A canceled/lapsed paid subscription reverts to the Free plan and is subject to the same trial gate.
 - **Stripe Billing**: Checkout, customer portal and subscription webhooks for upgrading/downgrading plans (optional, see setup below)
 
 ### 🧠 Advanced Analytics (NEW)
@@ -163,10 +166,9 @@ Starting with v1.1.0, the dashboard requires user authentication. All test data 
 ### 1. Create Your Account
 
 1. Open the dashboard at `http://localhost:3000`
-2. Click **"Login"** in the top right
-3. Click **"Create Account"** to register
-4. Enter your email and password
-5. Click **"Sign Up"**
+2. Click **"Get Started"** in the top right — this takes you to `/pricing` first
+3. Choose a plan (Free starts a 14-day trial; Pro/Team go to Stripe Checkout after sign-in)
+4. Click **"Continue with Google"** and authorize with your Google account — this creates your account automatically on first sign-in
 
 ### 2. Create a Project
 
@@ -259,12 +261,14 @@ curl -H "Authorization: Bearer YOUR_JWT_TOKEN" http://localhost:3001/api/project
 ### Billing
 
 - `GET /api/billing/plans` - Public pricing plan catalog (no auth required)
-- `GET /api/billing/subscription` - Current user's plan and subscription status (requires auth)
+- `GET /api/billing/subscription` - Current user's plan, subscription status, and trial info (`trialDaysLeft`, `accessAllowed`) (requires auth)
 - `POST /api/billing/checkout` - Create a Stripe Checkout session for a paid plan
   - Body: `{ planId }` (`pro` or `team`)
   - Returns: `{ url }` to redirect the browser to
 - `POST /api/billing/portal` - Create a Stripe customer portal session for the current user
   - Returns: `{ url }` to redirect the browser to
+
+All project-data endpoints (dashboard, metrics, module heatmap, etc.) and `POST /api/projects` return `402 { error, code: 'TRIAL_EXPIRED' }` once a Free-plan user's trial has ended. The frontend's axios client redirects to `/billing` automatically on a 402.
 - `POST /api/billing/webhook` - Stripe webhook receiver (called by Stripe, not the frontend)
 
 ### Projects

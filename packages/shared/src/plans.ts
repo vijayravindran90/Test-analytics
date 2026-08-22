@@ -8,23 +8,28 @@ export interface PlanDefinition {
   priceIdEnvVar?: string;
   maxProjects: number | null;
   retentionDays: number | null;
+  /** Number of days this plan may be used before access is blocked pending upgrade. Undefined = no trial limit. */
+  trialDays?: number;
   features: string[];
   highlight?: boolean;
 }
+
+export const FREE_TRIAL_DAYS = 14;
 
 export const PLANS: PlanDefinition[] = [
   {
     id: 'free',
     name: 'Free',
-    tagline: 'Get started with a single project',
+    tagline: `Start your ${FREE_TRIAL_DAYS}-day free trial`,
     priceMonthly: 0,
     maxProjects: 1,
     retentionDays: 14,
+    trialDays: FREE_TRIAL_DAYS,
     features: [
+      `${FREE_TRIAL_DAYS}-day free trial`,
       '1 project',
-      '14-day test history',
       'Pass rate, flakiness & duration metrics',
-      'Community support',
+      'Upgrade anytime to keep access',
     ],
   },
   {

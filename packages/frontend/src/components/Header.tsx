@@ -153,8 +153,8 @@ export default function Header({ theme, onToggleTheme }: HeaderProps) {
               )}
             </div>
           ) : (
-            <Link to="/login" className="btn btn-primary px-3 py-1.5">
-              Login
+            <Link to="/pricing" className="btn btn-primary px-3 py-1.5">
+              Get Started
             </Link>
           )}
         </nav>

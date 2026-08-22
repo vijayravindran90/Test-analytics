@@ -223,6 +223,39 @@ export function useTestRuns(projectId: string, limit: number = 20) {
   return { runs, loading, error };
 }
 
+export interface SubscriptionInfo {
+  plan: { id: string; name: string; priceMonthly: number };
+  subscriptionStatus?: string;
+  currentPeriodEnd?: string;
+  hasBillingAccount: boolean;
+  trialDaysLeft: number | null;
+  accessAllowed: boolean;
+}
+
+export function useSubscription() {
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchSubscription = async () => {
+      try {
+        setLoading(true);
+        const response = await apiClient.get('/billing/subscription');
+        setSubscription(response.data);
+      } catch (err: any) {
+        setError(err?.response?.data?.error || 'Unable to load your subscription');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSubscription();
+  }, []);
+
+  return { subscription, loading, error };
+}
+
 export interface ConfidenceScore {
   score: number;
   label: 'Excellent' | 'Good' | 'Needs attention' | 'At risk';

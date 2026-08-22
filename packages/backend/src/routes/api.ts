@@ -51,12 +51,27 @@ interface DashboardData {
 
 const router = express.Router();
 
+const TRIAL_EXPIRED_MESSAGE = 'Your free trial has ended. Upgrade your plan to keep using Test Analytics.';
+
+async function ensureActiveSubscription(userId: string, res: Response): Promise<boolean> {
+  const accessStatus = await userService.getAccessStatus(userId);
+  if (!accessStatus.allowed) {
+    res.status(402).json({ error: TRIAL_EXPIRED_MESSAGE, code: accessStatus.reason || 'TRIAL_EXPIRED' });
+    return false;
+  }
+  return true;
+}
+
 async function ensureProjectAccess(req: AuthenticatedRequest, res: Response): Promise<string | null> {
   const { projectId } = req.params;
   const userId = req.user?.id;
 
   if (!userId) {
     res.status(401).json({ error: 'Authentication required' });
+    return null;
+  }
+
+  if (!(await ensureActiveSubscription(userId, res))) {
     return null;
   }
 
@@ -180,11 +195,15 @@ router.get('/billing/subscription', requireAuth, async (req: AuthenticatedReques
       return res.status(404).json({ error: 'User not found' });
     }
 
+    const accessStatus = await userService.getAccessStatus(req.user!.id);
+
     res.json({
       plan: getPlanById(profile.plan),
       subscriptionStatus: profile.subscriptionStatus,
       currentPeriodEnd: profile.currentPeriodEnd,
       hasBillingAccount: Boolean(profile.stripeCustomerId),
+      trialDaysLeft: accessStatus.trialDaysLeft,
+      accessAllowed: accessStatus.allowed,
     });
   } catch (error) {
     console.error('Error fetching subscription:', error);
@@ -732,6 +751,10 @@ router.post('/projects', requireAuth, async (req: AuthenticatedRequest, res: Res
 
     if (!name) {
       return res.status(400).json({ error: 'Project name is required' });
+    }
+
+    if (!(await ensureActiveSubscription(req.user!.id, res))) {
+      return;
     }
 
     const billingProfile = await userService.getBillingProfile(req.user!.id);
