@@ -39,6 +39,15 @@ JWT_SECRET=<generate-a-secure-random-string-here>
 
 # Optional Admin Key
 ADMIN_KEY=<your-secure-admin-key>
+
+# Optional: Google Sign-In (see README "Optional: Set Up Google Sign-In")
+GOOGLE_CLIENT_ID=<your-google-oauth-client-id>
+
+# Optional: Stripe billing (see README "Optional: Set Up Stripe Billing")
+STRIPE_SECRET_KEY=<sk_live_or_test_...>
+STRIPE_WEBHOOK_SECRET=<whsec_...>
+STRIPE_PRICE_ID_PRO=<price_...>
+STRIPE_PRICE_ID_TEAM=<price_...>
 ```
 
 **Generate a secure JWT_SECRET:**
@@ -193,6 +202,7 @@ ADMIN_KEY=<optional-admin-key>
 **Frontend (Build-time):**
 ```bash
 VITE_API_URL=https://your-backend.railway.app/api
+VITE_GOOGLE_CLIENT_ID=<your-google-oauth-client-id>   # optional
 ```
 
 ---

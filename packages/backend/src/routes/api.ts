@@ -1,11 +1,14 @@
 import express, { Request, Response } from 'express';
 import { validate as validateUuid } from 'uuid';
+import { PLANS, PlanId, getPlanById } from 'test-analytics-shared';
 import testService from '../services/testService';
 import projectService from '../services/projectService';
 import pool from '../db';
 import userService from '../services/userService';
 import { signAuthToken, verifyAuthToken } from '../auth';
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth';
+import { isGoogleSignInConfigured, verifyGoogleIdToken } from '../services/googleAuth';
+import { createCheckoutSession, createPortalSession, isStripeConfigured } from '../services/billingService';
 
 interface TestResult {
   id: string;
@@ -118,6 +121,28 @@ router.post('/auth/login', async (req: Request, res: Response) => {
   }
 });
 
+router.post('/auth/google', async (req: Request, res: Response) => {
+  try {
+    if (!isGoogleSignInConfigured()) {
+      return res.status(503).json({ error: 'Google sign-in is not configured on this server' });
+    }
+
+    const { idToken } = req.body;
+    if (!idToken) {
+      return res.status(400).json({ error: 'idToken is required' });
+    }
+
+    const profile = await verifyGoogleIdToken(String(idToken));
+    const user = await userService.findOrCreateGoogleUser(profile);
+    const token = signAuthToken({ userId: user.id, email: user.email });
+
+    res.json({ token, user });
+  } catch (error: any) {
+    console.error('Error authenticating with Google:', error);
+    res.status(401).json({ error: error?.message || 'Google sign-in failed' });
+  }
+});
+
 router.get('/auth/me', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const user = await userService.getUserById(req.user!.id);
@@ -140,6 +165,73 @@ router.post('/auth/api-key', requireAuth, async (req: AuthenticatedRequest, res:
   } catch (error) {
     console.error('Error generating API key:', error);
     res.status(500).json({ error: 'Failed to generate API key' });
+  }
+});
+
+// Public pricing plan catalog
+router.get('/billing/plans', async (req: Request, res: Response) => {
+  res.json({ plans: PLANS, billingEnabled: isStripeConfigured() });
+});
+
+router.get('/billing/subscription', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const profile = await userService.getBillingProfile(req.user!.id);
+    if (!profile) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      plan: getPlanById(profile.plan),
+      subscriptionStatus: profile.subscriptionStatus,
+      currentPeriodEnd: profile.currentPeriodEnd,
+      hasBillingAccount: Boolean(profile.stripeCustomerId),
+    });
+  } catch (error) {
+    console.error('Error fetching subscription:', error);
+    res.status(500).json({ error: 'Failed to fetch subscription' });
+  }
+});
+
+router.post('/billing/checkout', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!isStripeConfigured()) {
+      return res.status(503).json({ error: 'Billing is not configured on this server' });
+    }
+
+    const { planId } = req.body;
+    const plan = PLANS.find((p) => p.id === planId);
+    if (!plan || !plan.priceIdEnvVar) {
+      return res.status(400).json({ error: 'Invalid plan selected' });
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const url = await createCheckoutSession(
+      req.user!.id,
+      req.user!.email,
+      plan.id as PlanId,
+      `${frontendUrl}/#/billing?checkout=success`,
+      `${frontendUrl}/#/pricing?checkout=canceled`
+    );
+
+    res.json({ url });
+  } catch (error: any) {
+    console.error('Error creating checkout session:', error);
+    res.status(500).json({ error: error?.message || 'Failed to start checkout' });
+  }
+});
+
+router.post('/billing/portal', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!isStripeConfigured()) {
+      return res.status(503).json({ error: 'Billing is not configured on this server' });
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const url = await createPortalSession(req.user!.id, `${frontendUrl}/#/billing`);
+    res.json({ url });
+  } catch (error: any) {
+    console.error('Error creating billing portal session:', error);
+    res.status(400).json({ error: error?.message || 'Failed to open billing portal' });
   }
 });
 
@@ -559,6 +651,19 @@ router.post('/projects', requireAuth, async (req: AuthenticatedRequest, res: Res
 
     if (!name) {
       return res.status(400).json({ error: 'Project name is required' });
+    }
+
+    const billingProfile = await userService.getBillingProfile(req.user!.id);
+    const plan = getPlanById(billingProfile?.plan);
+
+    if (plan.maxProjects !== null) {
+      const existingProjects = await projectService.getAllProjects(req.user!.id);
+      if (existingProjects.length >= plan.maxProjects) {
+        return res.status(403).json({
+          error: `Your ${plan.name} plan is limited to ${plan.maxProjects} project${plan.maxProjects === 1 ? '' : 's'}. Upgrade to add more.`,
+          code: 'PLAN_LIMIT_REACHED',
+        });
+      }
     }
 
     const project = await projectService.createProject(

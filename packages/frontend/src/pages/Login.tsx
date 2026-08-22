@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import GoogleSignInButton from '../components/GoogleSignInButton';
 
 export default function Login() {
   const { isAuthenticated, login, register } = useAuth();
@@ -45,6 +46,16 @@ export default function Login() {
           ? 'Use your account to access only your projects and dashboards.'
           : 'Create an account to keep dashboards private to your profile.'}
       </p>
+
+      <div className="mt-6">
+        <GoogleSignInButton />
+      </div>
+
+      <div className="mt-6 flex items-center gap-3 text-xs uppercase text-neutral-400">
+        <div className="h-px flex-1 bg-neutral-200" />
+        <span>Or use your email</span>
+        <div className="h-px flex-1 bg-neutral-200" />
+      </div>
 
       <form onSubmit={onSubmit} className="mt-6 space-y-4">
         {mode === 'register' && (

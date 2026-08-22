@@ -68,6 +68,9 @@ export default function Header({ theme, onToggleTheme }: HeaderProps) {
               Projects
             </Link>
           )}
+          <Link to="/pricing" className="text-neutral-600 hover:text-neutral-900">
+            Pricing
+          </Link>
           <a
             href="https://github.com/vijayravindran90/Test-analytics/blob/main/docs/architecture.md"
             target="_blank"
@@ -115,6 +118,16 @@ export default function Header({ theme, onToggleTheme }: HeaderProps) {
                     className="block w-full px-4 py-3 text-left text-sm text-neutral-700 hover:bg-neutral-100"
                   >
                     Integration
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsProfileOpen(false);
+                      navigate('/billing');
+                    }}
+                    className="block w-full px-4 py-3 text-left text-sm text-neutral-700 hover:bg-neutral-100"
+                  >
+                    Billing
                   </button>
                   <button
                     type="button"

@@ -6,9 +6,15 @@ A comprehensive test reporting and analytics dashboard for Playwright tests, sim
 
 ### 🔐 User Authentication & Multi-Tenant Support (NEW in v1.1.0)
 - **User Registration & Login**: Create secure accounts with email and password
+- **Sign in with Google**: One-click sign-in using a Google account (optional, see setup below)
 - **JWT-Based Authentication**: Secure stateless authentication with 7-day token expiry
 - **Project Isolation**: Each user's projects and test data are completely isolated
 - **Per-User Project Namespacing**: Same project name can exist across different user profiles
+
+### 💳 Public Landing Page & Pricing
+- **Marketing Home Page**: Public landing page with product overview and feature highlights for visitors who aren't signed in
+- **Pricing Plans**: Free / Pro / Team tiers with per-plan project limits, shown on `/pricing` and reused on the in-app billing page
+- **Stripe Billing**: Checkout, customer portal and subscription webhooks for upgrading/downgrading plans (optional, see setup below)
 
 ### 📊 Test Analytics
 - **Test Metrics Dashboard**: Real-time metrics including pass rate, failure rate, flakiness percentage, and stability score
@@ -97,7 +103,34 @@ ADMIN_KEY=optional-admin-api-key
 **packages/frontend/.env** (optional):
 ```ini
 VITE_API_URL=http://localhost:3001/api
+VITE_GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
 ```
+
+### Optional: Set Up Google Sign-In
+
+1. Create an OAuth Client ID (type "Web application") at [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials).
+2. Add your frontend origin(s) (e.g. `http://localhost:3000`, `https://www.your-domain.com`) to **Authorized JavaScript origins**.
+3. Set the same client ID in both places:
+   - `packages/backend/.env` → `GOOGLE_CLIENT_ID`
+   - `packages/frontend/.env` → `VITE_GOOGLE_CLIENT_ID`
+4. Restart both servers. A "Continue with Google" button will appear on the login page automatically; it stays hidden until the client ID is configured.
+
+Google users are matched to an existing account by email if one already exists, otherwise a new account is created automatically.
+
+### Optional: Set Up Stripe Billing
+
+1. Create a [Stripe](https://dashboard.stripe.com) account and create two recurring Prices (one for Pro, one for Team) matching the amounts in `packages/shared/src/plans.ts`.
+2. Add to `packages/backend/.env`:
+   ```ini
+   STRIPE_SECRET_KEY=sk_test_...
+   STRIPE_PRICE_ID_PRO=price_...
+   STRIPE_PRICE_ID_TEAM=price_...
+   STRIPE_WEBHOOK_SECRET=whsec_...
+   ```
+3. Point a Stripe webhook at `POST {your-backend-url}/api/billing/webhook`, subscribed to `checkout.session.completed`, `customer.subscription.updated` and `customer.subscription.deleted`. Use the Stripe CLI (`stripe listen --forward-to localhost:3001/api/billing/webhook`) for local testing.
+4. Once configured, the pricing page and the in-app **Billing** page (from the profile menu) let users start a Stripe Checkout session and manage their subscription through the Stripe customer portal. Without these variables set, the pricing page still renders but checkout returns a friendly "billing is not configured" error.
+
+Plan limits (e.g. max projects per plan) are enforced in the backend when a plan's project cap is defined; retention-day limits shown on the pricing page are informational only and are not yet automatically enforced.
 
 ### 5. Start the Backend Server
 
@@ -212,6 +245,21 @@ curl -H "Authorization: Bearer YOUR_JWT_TOKEN" http://localhost:3001/api/project
 - `GET /api/auth/me` - Get current user profile
   - Requires: Bearer token
   - Returns: `{ user: { id, email, name } }`
+
+- `POST /api/auth/google` - Sign in (or register) with a Google ID token
+  - Body: `{ idToken }` (from Google Identity Services on the frontend)
+  - Returns: `{ token, user: { id, email, name } }`
+
+### Billing
+
+- `GET /api/billing/plans` - Public pricing plan catalog (no auth required)
+- `GET /api/billing/subscription` - Current user's plan and subscription status (requires auth)
+- `POST /api/billing/checkout` - Create a Stripe Checkout session for a paid plan
+  - Body: `{ planId }` (`pro` or `team`)
+  - Returns: `{ url }` to redirect the browser to
+- `POST /api/billing/portal` - Create a Stripe customer portal session for the current user
+  - Returns: `{ url }` to redirect the browser to
+- `POST /api/billing/webhook` - Stripe webhook receiver (called by Stripe, not the frontend)
 
 ### Projects
 
