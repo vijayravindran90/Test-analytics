@@ -19,7 +19,7 @@ export default function PricingPlans({ currentPlan }: PricingPlansProps) {
     setError(null);
 
     if (!isAuthenticated) {
-      navigate('/login');
+      navigate(planId === 'free' ? '/login' : `/login?plan=${planId}`);
       return;
     }
 

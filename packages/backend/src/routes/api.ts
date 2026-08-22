@@ -429,6 +429,87 @@ router.get('/projects/:projectId/performance-alerts', requireAuth, async (req: A
   }
 });
 
+// Get confidence score
+router.get('/projects/:projectId/confidence-score', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
+    const { days = 30 } = req.query;
+
+    const confidenceScore = await testService.getConfidenceScore(projectId, parseInt(days as string));
+    res.json(confidenceScore);
+  } catch (error) {
+    console.error('Error fetching confidence score:', error);
+    res.status(500).json({ error: 'Failed to fetch confidence score' });
+  }
+});
+
+// Get guardrail status
+router.get('/projects/:projectId/guardrails', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
+    const { days = 30 } = req.query;
+
+    const project = await projectService.getProject(projectId, req.user!.id);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const guardrails = await testService.getGuardrails(
+      projectId,
+      {
+        minPassRate: project.guardrailMinPassRate,
+        maxFlakiness: project.guardrailMaxFlakiness,
+        maxAvgDurationMs: project.guardrailMaxAvgDurationMs,
+      },
+      parseInt(days as string)
+    );
+    res.json(guardrails);
+  } catch (error) {
+    console.error('Error fetching guardrails:', error);
+    res.status(500).json({ error: 'Failed to fetch guardrails' });
+  }
+});
+
+// Get module-wise metrics
+router.get('/projects/:projectId/module-metrics', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
+    const { days = 30 } = req.query;
+
+    const moduleMetrics = await testService.getModuleMetrics(projectId, parseInt(days as string));
+    res.json(moduleMetrics);
+  } catch (error) {
+    console.error('Error fetching module metrics:', error);
+    res.status(500).json({ error: 'Failed to fetch module metrics' });
+  }
+});
+
+// Get module x day pass-rate heatmap
+router.get('/projects/:projectId/heatmap', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
+    const { days = 14 } = req.query;
+
+    const heatmap = await testService.getModuleHeatmap(projectId, parseInt(days as string));
+    res.json(heatmap);
+  } catch (error) {
+    console.error('Error fetching module heatmap:', error);
+    res.status(500).json({ error: 'Failed to fetch module heatmap' });
+  }
+});
+
 // Get metrics trend
 router.get('/projects/:projectId/trends', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {

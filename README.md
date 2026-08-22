@@ -16,6 +16,12 @@ A comprehensive test reporting and analytics dashboard for Playwright tests, sim
 - **Pricing Plans**: Free / Pro / Team tiers with per-plan project limits, shown on `/pricing` and reused on the in-app billing page
 - **Stripe Billing**: Checkout, customer portal and subscription webhooks for upgrading/downgrading plans (optional, see setup below)
 
+### 🧠 Advanced Analytics (NEW)
+- **Confidence Score**: A single 0-100 score per project, weighted from pass rate (50%), stability (30%) and how recently tests ran (20%)
+- **Guardrails**: Configurable quality gates (minimum pass rate, maximum flakiness, optional max average duration) shown as pass/fail chips on the dashboard
+- **Module Heatmap**: Pass rate by test folder x day, derived automatically from each test's file path — no reporter changes needed
+- **Test Folder Metrics**: Pass rate, flakiness and average duration rolled up per test folder/module
+
 ### 📊 Test Analytics
 - **Test Metrics Dashboard**: Real-time metrics including pass rate, failure rate, flakiness percentage, and stability score
 - **Browser-Specific Analytics**: Track test metrics across different browsers (Chromium, Firefox, WebKit) with separate dashboards and trend analysis
@@ -283,6 +289,15 @@ All project endpoints require authentication.
 - `GET /api/projects/:projectId/flaky-tests` - Get list of flaky tests
 - `GET /api/projects/:projectId/performance-alerts` - Get performance alerts
 - `GET /api/projects/:projectId/trends` - Get metrics trends over time
+
+### Advanced Analytics (NEW)
+
+- `GET /api/projects/:projectId/confidence-score` - Weighted 0-100 confidence score with a pass-rate/stability/recency breakdown
+- `GET /api/projects/:projectId/guardrails` - Pass/fail status against each project's quality gate thresholds
+- `GET /api/projects/:projectId/module-metrics` - Pass rate, flakiness and duration grouped by test folder
+- `GET /api/projects/:projectId/heatmap` - Module x day pass-rate matrix for the heatmap widget
+
+Guardrail thresholds (`guardrailMinPassRate`, `guardrailMaxFlakiness`, `guardrailMaxAvgDurationMs`) can be changed via `PUT /api/projects/:projectId`, the same endpoint used for other project settings.
 
 ### Browser Analytics (NEW)
 

@@ -7,11 +7,15 @@ export default defineConfig({
   publicDir: 'public', // Ensure public folder files (like 404.html) are copied to dist
   // The shared workspace package is symlinked in via npm workspaces, so Vite/Rollup
   // resolves it to its real path outside node_modules. Widen the commonjs include
-  // pattern so its compiled CJS output still gets CJS->ESM interop applied.
+  // pattern so its compiled CJS output still gets CJS->ESM interop applied during
+  // production builds, and force it through esbuild's dep pre-bundling in dev too.
   build: {
     commonjsOptions: {
       include: [/node_modules/, /packages\/shared/],
     },
+  },
+  optimizeDeps: {
+    include: ['test-analytics-shared'],
   },
   server: {
     port: 3000,

@@ -1,12 +1,56 @@
-import React, { useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import GoogleSignInButton from '../components/GoogleSignInButton';
+import apiClient from '../api/client';
+
+function PostLoginCheckoutRedirect({ planId, fallbackPath }: { planId: string; fallbackPath: string }) {
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const startCheckout = async () => {
+      try {
+        const response = await apiClient.post('/billing/checkout', { planId });
+        if (!cancelled) {
+          window.location.href = response.data.url;
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err?.response?.data?.error || 'Unable to start checkout for this plan.');
+        }
+      }
+    };
+
+    startCheckout();
+    return () => {
+      cancelled = true;
+    };
+  }, [planId]);
+
+  if (error) {
+    return (
+      <div className="mx-auto max-w-md card p-6 text-center">
+        <p className="text-danger-600">{error}</p>
+        <Navigate to={fallbackPath} replace />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-md card p-6 text-center">
+      <p className="text-neutral-600">Signed in! Redirecting you to checkout...</p>
+    </div>
+  );
+}
 
 export default function Login() {
   const { isAuthenticated, login, register } = useAuth();
   const location = useLocation();
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [searchParams] = useSearchParams();
+  const planId = searchParams.get('plan');
+  const [mode, setMode] = useState<'login' | 'register'>(planId ? 'register' : 'login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -15,6 +59,9 @@ export default function Login() {
 
   if (isAuthenticated) {
     const redirectPath = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/projects';
+    if (planId && planId !== 'free') {
+      return <PostLoginCheckoutRedirect planId={planId} fallbackPath={redirectPath} />;
+    }
     return <Navigate to={redirectPath} replace />;
   }
 
@@ -46,6 +93,13 @@ export default function Login() {
           ? 'Use your account to access only your projects and dashboards.'
           : 'Create an account to keep dashboards private to your profile.'}
       </p>
+
+      {planId && planId !== 'free' && (
+        <div className="mt-4 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
+          You'll continue straight to checkout for the <strong className="capitalize">{planId}</strong> plan after signing
+          in.
+        </div>
+      )}
 
       <div className="mt-6">
         <GoogleSignInButton />

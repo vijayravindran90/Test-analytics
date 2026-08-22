@@ -223,6 +223,151 @@ export function useTestRuns(projectId: string, limit: number = 20) {
   return { runs, loading, error };
 }
 
+export interface ConfidenceScore {
+  score: number;
+  label: 'Excellent' | 'Good' | 'Needs attention' | 'At risk';
+  breakdown: {
+    passRateScore: number;
+    stabilityScore: number;
+    recencyScore: number;
+  };
+  lastRunAt: string | null;
+}
+
+export function useConfidenceScore(projectId: string, days: number = 30) {
+  const [score, setScore] = useState<ConfidenceScore | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchScore = async () => {
+      try {
+        setLoading(true);
+        const response = await apiClient.get(`/projects/${projectId}/confidence-score?days=${days}`);
+        setScore(response.data);
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch confidence score');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchScore();
+  }, [projectId, days]);
+
+  return { score, loading, error };
+}
+
+export interface GuardrailCheck {
+  key: string;
+  label: string;
+  status: 'pass' | 'fail';
+  actual: number;
+  threshold: number;
+  unit: '%' | 'ms';
+}
+
+export interface Guardrails {
+  overallStatus: 'pass' | 'fail';
+  checks: GuardrailCheck[];
+}
+
+export function useGuardrails(projectId: string, days: number = 30) {
+  const [guardrails, setGuardrails] = useState<Guardrails | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchGuardrails = async () => {
+      try {
+        setLoading(true);
+        const response = await apiClient.get(`/projects/${projectId}/guardrails?days=${days}`);
+        setGuardrails(response.data);
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch guardrails');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGuardrails();
+  }, [projectId, days]);
+
+  return { guardrails, loading, error };
+}
+
+export interface ModuleMetric {
+  module: string;
+  totalTests: number;
+  passedTests: number;
+  failedTests: number;
+  passRate: number;
+  flakinessPercentage: number;
+  avgDuration: number;
+}
+
+export function useModuleMetrics(projectId: string, days: number = 30) {
+  const [modules, setModules] = useState<ModuleMetric[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchModules = async () => {
+      try {
+        setLoading(true);
+        const response = await apiClient.get(`/projects/${projectId}/module-metrics?days=${days}`);
+        setModules(response.data);
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch module metrics');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchModules();
+  }, [projectId, days]);
+
+  return { modules, loading, error };
+}
+
+export interface HeatmapCell {
+  module: string;
+  date: string;
+  totalTests: number;
+  passedTests: number;
+  passRate: number;
+}
+
+export interface Heatmap {
+  modules: string[];
+  dates: string[];
+  cells: HeatmapCell[];
+}
+
+export function useModuleHeatmap(projectId: string, days: number = 14) {
+  const [heatmap, setHeatmap] = useState<Heatmap | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchHeatmap = async () => {
+      try {
+        setLoading(true);
+        const response = await apiClient.get(`/projects/${projectId}/heatmap?days=${days}`);
+        setHeatmap(response.data);
+      } catch (err: any) {
+        setError(err.message || 'Failed to fetch heatmap');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchHeatmap();
+  }, [projectId, days]);
+
+  return { heatmap, loading, error };
+}
+
 export function useTestRunDetails(projectId: string, runId: string | null) {
   const [tests, setTests] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
