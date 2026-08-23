@@ -16,7 +16,7 @@ A comprehensive test reporting and analytics dashboard for Playwright tests, sim
 
 ### 💳 Public Landing Page, Pricing & Free Trial
 - **Marketing Home Page**: Public landing page with product overview and feature highlights for visitors who aren't signed in
-- **Pricing Plans**: Free (14-day trial) / Pro / Team tiers with per-plan project limits, shown on `/pricing` and reused on the in-app billing page
+- **Pricing Plans**: Free (14-day trial) / Pro ($12/mo billed monthly, $10/mo billed annually) tiers with per-plan project limits, shown on `/pricing` and reused on the in-app billing page. Team is shown with a "Coming soon" badge and isn't purchasable yet.
 - **14-Day Free Trial**: The Free plan is time-limited (`FREE_TRIAL_DAYS` in `packages/shared/src/plans.ts`). A banner shows days remaining; once it expires, project dashboards and project creation are blocked (HTTP 402) until the user upgrades. A canceled/lapsed paid subscription reverts to the Free plan and is subject to the same trial gate.
 - **Stripe Billing**: Checkout, customer portal and subscription webhooks for upgrading/downgrading plans (optional, see setup below)
 
@@ -144,18 +144,37 @@ Every account — Google or email/password — must have a verified email before
 
 Without SMTP configured, verification links are printed to the backend's console log (`[email] SMTP not configured — verification link for ...`) so you can still test the flow locally by copying the link from the logs.
 
+### Optional: Create a Test Account
+
+For exploring the app (or letting someone else try it) without going through Google/SMTP/Stripe setup, seed a permanent test account: pre-verified, on the Pro plan, never trial-limited.
+
+**From a browser**, once deployed: set `ADMIN_KEY` in the backend's environment, then visit
+```
+https://<your-backend-url>/api/admin/seed-test-account?adminKey=<your-admin-key>
+```
+The JSON response includes the email and password — save them immediately, the password isn't shown again (only a bcrypt hash is stored). Add `&email=...` / `&password=...` to pick your own, or `&resetPassword=<new-password>` on a later visit to change the password of an account that already exists. This endpoint requires `ADMIN_KEY` to be set; without it, it refuses to run. Since the key and password travel in the URL, don't share that link with anyone you don't want to have admin/test access, and treat your browser history accordingly.
+
+**From the command line**, equivalently:
+```bash
+cd packages/backend
+npm run seed:test-account            # local dev, ts-node
+# or, against a deployed database (e.g. `railway run` so it uses Railway's own network):
+DATABASE_URL=<connection-string> npm run seed:test-account:prod   # after `npm run build`
+```
+Defaults to `tester@test-analytics.in` with a random password; override with `TEST_ACCOUNT_EMAIL` / `TEST_ACCOUNT_PASSWORD` / `TEST_ACCOUNT_RESET_PASSWORD` env vars. Both entry points call the same idempotent logic — re-running either just refreshes the plan/verification bypass without touching an existing password.
+
 ### Optional: Set Up Stripe Billing
 
-1. Create a [Stripe](https://dashboard.stripe.com) account and create two recurring Prices (one for Pro, one for Team) matching the amounts in `packages/shared/src/plans.ts`.
+1. Create a [Stripe](https://dashboard.stripe.com) account and, on the Pro product, create **two** recurring Prices matching `packages/shared/src/plans.ts`: $12/month billed monthly, and $10/month ($120/year) billed annually. Team is marked "Coming soon" in the UI and isn't purchasable yet, so its Prices aren't required until it launches.
 2. Add to `packages/backend/.env`:
    ```ini
    STRIPE_SECRET_KEY=sk_test_...
-   STRIPE_PRICE_ID_PRO=price_...
-   STRIPE_PRICE_ID_TEAM=price_...
+   STRIPE_PRICE_ID_PRO_MONTHLY=price_...
+   STRIPE_PRICE_ID_PRO_ANNUAL=price_...
    STRIPE_WEBHOOK_SECRET=whsec_...
    ```
 3. Point a Stripe webhook at `POST {your-backend-url}/api/billing/webhook`, subscribed to `checkout.session.completed`, `customer.subscription.updated` and `customer.subscription.deleted`. Use the Stripe CLI (`stripe listen --forward-to localhost:3001/api/billing/webhook`) for local testing.
-4. Once configured, the pricing page and the in-app **Billing** page (from the profile menu) let users start a Stripe Checkout session and manage their subscription through the Stripe customer portal. Without these variables set, the pricing page still renders but checkout returns a friendly "billing is not configured" error.
+4. Once configured, the pricing page and the in-app **Billing** page (from the profile menu) let users toggle monthly/annual billing and start a Stripe Checkout session, then manage their subscription through the Stripe customer portal. Without these variables set, the pricing page still renders but checkout returns a friendly "billing is not configured" error.
 
 Plan limits (e.g. max projects per plan) are enforced in the backend when a plan's project cap is defined; retention-day limits shown on the pricing page are informational only and are not yet automatically enforced.
 
@@ -295,6 +314,15 @@ curl -H "Authorization: Bearer YOUR_JWT_TOKEN" http://localhost:3001/api/project
 - `POST /api/billing/portal` - Create a Stripe customer portal session for the current user
   - Returns: `{ url }` to redirect the browser to
 - `POST /api/billing/webhook` - Stripe webhook receiver (called by Stripe, not the frontend)
+
+### Admin
+
+Both require `?adminKey=` (GET) or `{ adminKey }` (POST) matching the server's `ADMIN_KEY` env var.
+
+- `GET/POST /api/admin/seed-test-account` - Create or refresh the permanent test account (see "Optional: Create a Test Account" above)
+  - Query/body: `email?`, `password?`, `resetPassword?`
+  - Returns: `{ success, created, email, password, plan, note }`
+- `POST /api/admin/migrate` - One-off schema patch predating the migrations system; prefer `npm run db:migrate` instead
 
 All project-data endpoints (dashboard, metrics, module heatmap, etc.), `POST /api/projects`, and `POST /api/tests/batch` (the Playwright reporter's ingestion endpoint, whenever it's called with a Bearer token or API key identifying a user) are gated by the same access check:
 - `403 { error, code: 'EMAIL_NOT_VERIFIED' }` if the account's email isn't verified yet (checked before the trial, regardless of plan)

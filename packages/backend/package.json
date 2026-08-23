@@ -7,7 +7,9 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "db:migrate": "ts-node src/scripts/run-migrations.ts",
-    "db:migrate:prod": "node dist/scripts/run-migrations.js"
+    "db:migrate:prod": "node dist/scripts/run-migrations.js",
+    "seed:test-account": "ts-node src/scripts/seed-test-account.ts",
+    "seed:test-account:prod": "node dist/scripts/seed-test-account.js"
   },
   "dependencies": {
     "axios": "^1.6.0",

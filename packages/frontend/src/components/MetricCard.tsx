@@ -33,7 +33,7 @@ export default function MetricCard({
   color = 'primary',
 }: MetricCardProps) {
   return (
-    <div className={`card ${colorClasses[color]} border`}>
+    <div className={`card ${colorClasses[color]} border transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md`}>
       <div className="p-6">
         <div className="flex items-start justify-between">
           <div>

@@ -46,8 +46,8 @@ GOOGLE_CLIENT_ID=<your-google-oauth-client-id>
 # Optional: Stripe billing (see README "Optional: Set Up Stripe Billing")
 STRIPE_SECRET_KEY=<sk_live_or_test_...>
 STRIPE_WEBHOOK_SECRET=<whsec_...>
-STRIPE_PRICE_ID_PRO=<price_...>
-STRIPE_PRICE_ID_TEAM=<price_...>
+STRIPE_PRICE_ID_PRO_MONTHLY=<price_...>
+STRIPE_PRICE_ID_PRO_ANNUAL=<price_...>
 ```
 
 **Generate a secure JWT_SECRET:**
