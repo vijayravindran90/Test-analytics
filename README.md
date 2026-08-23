@@ -16,7 +16,7 @@ A comprehensive test reporting and analytics dashboard for Playwright tests, sim
 
 ### 💳 Public Landing Page, Pricing & Free Trial
 - **Marketing Home Page**: Public landing page with product overview and feature highlights for visitors who aren't signed in
-- **Pricing Plans**: Free (14-day trial) / Pro / Team tiers with per-plan project limits, shown on `/pricing` and reused on the in-app billing page
+- **Pricing Plans**: Free (14-day trial) / Pro ($12/mo billed monthly, $10/mo billed annually) tiers with per-plan project limits, shown on `/pricing` and reused on the in-app billing page. Team is shown with a "Coming soon" badge and isn't purchasable yet.
 - **14-Day Free Trial**: The Free plan is time-limited (`FREE_TRIAL_DAYS` in `packages/shared/src/plans.ts`). A banner shows days remaining; once it expires, project dashboards and project creation are blocked (HTTP 402) until the user upgrades. A canceled/lapsed paid subscription reverts to the Free plan and is subject to the same trial gate.
 - **Stripe Billing**: Checkout, customer portal and subscription webhooks for upgrading/downgrading plans (optional, see setup below)
 
@@ -146,16 +146,16 @@ Without SMTP configured, verification links are printed to the backend's console
 
 ### Optional: Set Up Stripe Billing
 
-1. Create a [Stripe](https://dashboard.stripe.com) account and create two recurring Prices (one for Pro, one for Team) matching the amounts in `packages/shared/src/plans.ts`.
+1. Create a [Stripe](https://dashboard.stripe.com) account and, on the Pro product, create **two** recurring Prices matching `packages/shared/src/plans.ts`: $12/month billed monthly, and $10/month ($120/year) billed annually. Team is marked "Coming soon" in the UI and isn't purchasable yet, so its Prices aren't required until it launches.
 2. Add to `packages/backend/.env`:
    ```ini
    STRIPE_SECRET_KEY=sk_test_...
-   STRIPE_PRICE_ID_PRO=price_...
-   STRIPE_PRICE_ID_TEAM=price_...
+   STRIPE_PRICE_ID_PRO_MONTHLY=price_...
+   STRIPE_PRICE_ID_PRO_ANNUAL=price_...
    STRIPE_WEBHOOK_SECRET=whsec_...
    ```
 3. Point a Stripe webhook at `POST {your-backend-url}/api/billing/webhook`, subscribed to `checkout.session.completed`, `customer.subscription.updated` and `customer.subscription.deleted`. Use the Stripe CLI (`stripe listen --forward-to localhost:3001/api/billing/webhook`) for local testing.
-4. Once configured, the pricing page and the in-app **Billing** page (from the profile menu) let users start a Stripe Checkout session and manage their subscription through the Stripe customer portal. Without these variables set, the pricing page still renders but checkout returns a friendly "billing is not configured" error.
+4. Once configured, the pricing page and the in-app **Billing** page (from the profile menu) let users toggle monthly/annual billing and start a Stripe Checkout session, then manage their subscription through the Stripe customer portal. Without these variables set, the pricing page still renders but checkout returns a friendly "billing is not configured" error.
 
 Plan limits (e.g. max projects per plan) are enforced in the backend when a plan's project cap is defined; retention-day limits shown on the pricing page are informational only and are not yet automatically enforced.
 

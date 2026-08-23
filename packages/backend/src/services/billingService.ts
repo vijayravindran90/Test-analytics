@@ -1,5 +1,5 @@
 import Stripe from 'stripe';
-import { PLANS, PlanId, getPlanById } from 'test-analytics-shared';
+import { PLANS, PlanId, BillingInterval, getPlanById, getPriceIdEnvVar } from 'test-analytics-shared';
 import userService from './userService';
 
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
@@ -23,12 +23,13 @@ export function isStripeConfigured(): boolean {
   return Boolean(STRIPE_SECRET_KEY);
 }
 
-function priceIdForPlan(planId: PlanId): string | null {
+function priceIdForPlan(planId: PlanId, interval: BillingInterval): string | null {
   const plan = getPlanById(planId);
-  if (!plan.priceIdEnvVar) {
+  const envVar = getPriceIdEnvVar(plan, interval);
+  if (!envVar) {
     return null;
   }
-  return process.env[plan.priceIdEnvVar] || null;
+  return process.env[envVar] || null;
 }
 
 function planIdForPriceId(priceId: string | null | undefined): PlanId | null {
@@ -37,7 +38,8 @@ function planIdForPriceId(priceId: string | null | undefined): PlanId | null {
   }
 
   for (const plan of PLANS) {
-    if (plan.priceIdEnvVar && process.env[plan.priceIdEnvVar] === priceId) {
+    const envVars = [plan.priceIdEnvVar, plan.priceIdEnvVarAnnual].filter(Boolean) as string[];
+    if (envVars.some((envVar) => process.env[envVar] === priceId)) {
       return plan.id;
     }
   }
@@ -66,14 +68,21 @@ export async function createCheckoutSession(
   userId: string,
   email: string,
   planId: PlanId,
+  interval: BillingInterval,
   successUrl: string,
   cancelUrl: string
 ): Promise<string> {
   const stripe = getStripeClient();
-  const priceId = priceIdForPlan(planId);
+  const plan = getPlanById(planId);
+
+  if (plan.comingSoon) {
+    throw new Error(`The ${plan.name} plan isn't available yet`);
+  }
+
+  const priceId = priceIdForPlan(planId, interval);
 
   if (!priceId) {
-    throw new Error(`No Stripe price configured for plan "${planId}"`);
+    throw new Error(`No Stripe price configured for plan "${planId}" (${interval})`);
   }
 
   const customerId = await getOrCreateStripeCustomer(userId, email);
@@ -84,9 +93,9 @@ export async function createCheckoutSession(
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: successUrl,
     cancel_url: cancelUrl,
-    metadata: { userId, planId },
+    metadata: { userId, planId, interval },
     subscription_data: {
-      metadata: { userId, planId },
+      metadata: { userId, planId, interval },
     },
   });
 

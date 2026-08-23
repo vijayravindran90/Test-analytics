@@ -28,7 +28,7 @@ body {
 }
 
 .card {
-  @apply bg-white rounded-lg border shadow-sm;
+  @apply bg-white rounded-lg border shadow-sm transition-shadow duration-200;
 }
 
 .dark .card {
@@ -36,11 +36,11 @@ body {
 }
 
 .btn {
-  @apply px-4 py-2 rounded-lg font-medium transition-colors;
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-150 active:scale-[0.98];
 }
 
 .btn-primary {
-  @apply bg-primary-500 text-white hover:bg-primary-600;
+  @apply bg-gradient-to-b from-primary-500 to-primary-600 text-white shadow-sm shadow-primary-200 hover:from-primary-600 hover:to-primary-700 hover:shadow-md hover:shadow-primary-200;
 }
 
 .btn-secondary {
@@ -49,6 +49,10 @@ body {
 
 .dark .btn-secondary {
   @apply bg-neutral-700 text-neutral-100 hover:bg-neutral-600;
+}
+
+.gradient-text {
+  @apply bg-gradient-to-r from-primary-600 via-primary-500 to-success-500 bg-clip-text text-transparent;
 }
 
 .badge {

@@ -1,11 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation, useSearchParams, Link } from 'react-router-dom';
-import { getPlanById } from 'test-analytics-shared';
+import { getPlanById, BillingInterval } from 'test-analytics-shared';
 import { useAuth } from '../auth/AuthContext';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 import apiClient from '../api/client';
 
-function PostLoginCheckoutRedirect({ planId, fallbackPath }: { planId: string; fallbackPath: string }) {
+function PostLoginCheckoutRedirect({
+  planId,
+  interval,
+  fallbackPath,
+}: {
+  planId: string;
+  interval: BillingInterval;
+  fallbackPath: string;
+}) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -13,7 +21,7 @@ function PostLoginCheckoutRedirect({ planId, fallbackPath }: { planId: string; f
 
     const startCheckout = async () => {
       try {
-        const response = await apiClient.post('/billing/checkout', { planId });
+        const response = await apiClient.post('/billing/checkout', { planId, interval });
         if (!cancelled) {
           window.location.href = response.data.url;
         }
@@ -28,7 +36,7 @@ function PostLoginCheckoutRedirect({ planId, fallbackPath }: { planId: string; f
     return () => {
       cancelled = true;
     };
-  }, [planId]);
+  }, [planId, interval]);
 
   if (error) {
     return (
@@ -90,6 +98,7 @@ export default function Login() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const planId = searchParams.get('plan');
+  const interval: BillingInterval = searchParams.get('interval') === 'annual' ? 'annual' : 'monthly';
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -106,7 +115,7 @@ export default function Login() {
     const redirectPath = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/projects';
 
     if (planId !== 'free') {
-      return <PostLoginCheckoutRedirect planId={planId} fallbackPath={redirectPath} />;
+      return <PostLoginCheckoutRedirect planId={planId} interval={interval} fallbackPath={redirectPath} />;
     }
 
     if (user && user.emailVerified === false) {
@@ -137,7 +146,7 @@ export default function Login() {
   };
 
   return (
-    <div className="mx-auto max-w-md card p-6">
+    <div className="mx-auto max-w-md card p-6 shadow-lg shadow-primary-100/60">
       <h1 className="text-2xl font-bold text-neutral-900">
         {mode === 'login' ? 'Sign in to your dashboard' : 'Create your profile'}
       </h1>
@@ -149,7 +158,11 @@ export default function Login() {
 
       <div className="mt-4 rounded-lg border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-700">
         Selected plan: <strong>{plan.name}</strong>
-        {plan.priceMonthly > 0 ? ` ($${plan.priceMonthly}/month)` : ' (14-day free trial)'}
+        {plan.priceMonthly === 0
+          ? ' (14-day free trial)'
+          : interval === 'annual' && plan.priceAnnualMonthly !== undefined
+          ? ` ($${plan.priceAnnualMonthly}/month, billed annually)`
+          : ` ($${plan.priceMonthly}/month)`}
       </div>
 
       <div className="mt-6">

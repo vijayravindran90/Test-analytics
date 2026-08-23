@@ -1,3 +1,5 @@
+import colors from 'tailwindcss/colors';
+
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: 'class',
@@ -8,31 +10,15 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-        },
-        success: {
-          50: '#f0fdf4',
-          500: '#22c55e',
-          600: '#16a34a',
-          700: '#15803d',
-        },
-        warning: {
-          50: '#fffbeb',
-          500: '#f59e0b',
-          600: '#d97706',
-          700: '#b45309',
-        },
-        danger: {
-          50: '#fef2f2',
-          500: '#ef4444',
-          600: '#dc2626',
-          700: '#b91c1c',
-        },
+        // Full shade ramps (50-950) matching the app's original 500/600/700 anchors -
+        // sky-500/green-500/amber-500/red-500 are exactly the hex values already in use
+        // (#0ea5e9/#22c55e/#f59e0b/#ef4444), so this is additive: it fills in the missing
+        // 200/300/400/800/900 shades that many components already referenced but that
+        // silently rendered as no-ops under the previous partial palette.
+        primary: colors.sky,
+        success: colors.green,
+        warning: colors.amber,
+        danger: colors.red,
       },
     },
   },

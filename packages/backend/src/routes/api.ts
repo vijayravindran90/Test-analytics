@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import { validate as validateUuid } from 'uuid';
-import { PLANS, PlanId, getPlanById } from 'test-analytics-shared';
+import { PLANS, PlanId, BillingInterval, getPlanById } from 'test-analytics-shared';
 import testService from '../services/testService';
 import projectService from '../services/projectService';
 import pool from '../db';
@@ -285,9 +285,11 @@ router.post('/billing/checkout', requireAuth, async (req: AuthenticatedRequest, 
       return res.status(503).json({ error: 'Billing is not configured on this server' });
     }
 
-    const { planId } = req.body;
+    const { planId, interval } = req.body;
     const plan = PLANS.find((p) => p.id === planId);
-    if (!plan || !plan.priceIdEnvVar) {
+    const billingInterval: BillingInterval = interval === 'annual' ? 'annual' : 'monthly';
+
+    if (!plan || !plan.priceIdEnvVar || plan.comingSoon) {
       return res.status(400).json({ error: 'Invalid plan selected' });
     }
 
@@ -296,6 +298,7 @@ router.post('/billing/checkout', requireAuth, async (req: AuthenticatedRequest, 
       req.user!.id,
       req.user!.email,
       plan.id as PlanId,
+      billingInterval,
       `${frontendUrl}/#/billing?checkout=success`,
       `${frontendUrl}/#/pricing?checkout=canceled`
     );

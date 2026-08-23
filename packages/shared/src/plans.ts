@@ -1,17 +1,26 @@
 export type PlanId = 'free' | 'pro' | 'team';
+export type BillingInterval = 'monthly' | 'annual';
 
 export interface PlanDefinition {
   id: PlanId;
   name: string;
   tagline: string;
+  /** Price in USD when billed monthly. */
   priceMonthly: number;
+  /** Effective $/month when billed annually (undefined = no annual option). */
+  priceAnnualMonthly?: number;
+  /** Env var holding the Stripe monthly Price ID. */
   priceIdEnvVar?: string;
+  /** Env var holding the Stripe annual Price ID. */
+  priceIdEnvVarAnnual?: string;
   maxProjects: number | null;
   retentionDays: number | null;
   /** Number of days this plan may be used before access is blocked pending upgrade. Undefined = no trial limit. */
   trialDays?: number;
   features: string[];
   highlight?: boolean;
+  /** Not purchasable yet - shown but disabled with a "Coming soon" badge. */
+  comingSoon?: boolean;
 }
 
 export const FREE_TRIAL_DAYS = 14;
@@ -36,8 +45,10 @@ export const PLANS: PlanDefinition[] = [
     id: 'pro',
     name: 'Pro',
     tagline: 'For teams shipping fast with CI',
-    priceMonthly: 29,
-    priceIdEnvVar: 'STRIPE_PRICE_ID_PRO',
+    priceMonthly: 12,
+    priceAnnualMonthly: 10,
+    priceIdEnvVar: 'STRIPE_PRICE_ID_PRO_MONTHLY',
+    priceIdEnvVarAnnual: 'STRIPE_PRICE_ID_PRO_ANNUAL',
     maxProjects: 10,
     retentionDays: 90,
     features: [
@@ -54,7 +65,8 @@ export const PLANS: PlanDefinition[] = [
     name: 'Team',
     tagline: 'Unlimited scale for growing orgs',
     priceMonthly: 99,
-    priceIdEnvVar: 'STRIPE_PRICE_ID_TEAM',
+    priceIdEnvVar: 'STRIPE_PRICE_ID_TEAM_MONTHLY',
+    priceIdEnvVarAnnual: 'STRIPE_PRICE_ID_TEAM_ANNUAL',
     maxProjects: null,
     retentionDays: null,
     features: [
@@ -64,9 +76,14 @@ export const PLANS: PlanDefinition[] = [
       'Priority support',
       'Team onboarding assistance',
     ],
+    comingSoon: true,
   },
 ];
 
 export function getPlanById(planId: string | null | undefined): PlanDefinition {
   return PLANS.find((plan) => plan.id === planId) || PLANS[0];
+}
+
+export function getPriceIdEnvVar(plan: PlanDefinition, interval: BillingInterval): string | undefined {
+  return interval === 'annual' ? plan.priceIdEnvVarAnnual : plan.priceIdEnvVar;
 }
