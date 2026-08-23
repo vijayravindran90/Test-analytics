@@ -5,14 +5,14 @@ export interface PlanDefinition {
   id: PlanId;
   name: string;
   tagline: string;
-  /** Price in USD when billed monthly. */
+  /** Price in INR when billed monthly. */
   priceMonthly: number;
-  /** Effective $/month when billed annually (undefined = no annual option). */
+  /** Effective INR/month when billed annually (undefined = no annual option). */
   priceAnnualMonthly?: number;
-  /** Env var holding the Stripe monthly Price ID. */
-  priceIdEnvVar?: string;
-  /** Env var holding the Stripe annual Price ID. */
-  priceIdEnvVarAnnual?: string;
+  /** Env var holding the Razorpay monthly Plan ID. */
+  planIdEnvVar?: string;
+  /** Env var holding the Razorpay annual Plan ID. */
+  planIdEnvVarAnnual?: string;
   maxProjects: number | null;
   retentionDays: number | null;
   /** Number of days this plan may be used before access is blocked pending upgrade. Undefined = no trial limit. */
@@ -24,6 +24,9 @@ export interface PlanDefinition {
 }
 
 export const FREE_TRIAL_DAYS = 14;
+
+/** Currency all paid plans are billed in via Razorpay. */
+export const CURRENCY_SYMBOL = '₹';
 
 export const PLANS: PlanDefinition[] = [
   {
@@ -45,10 +48,10 @@ export const PLANS: PlanDefinition[] = [
     id: 'pro',
     name: 'Pro',
     tagline: 'For teams shipping fast with CI',
-    priceMonthly: 12,
-    priceAnnualMonthly: 10,
-    priceIdEnvVar: 'STRIPE_PRICE_ID_PRO_MONTHLY',
-    priceIdEnvVarAnnual: 'STRIPE_PRICE_ID_PRO_ANNUAL',
+    priceMonthly: 999,
+    priceAnnualMonthly: 833,
+    planIdEnvVar: 'RAZORPAY_PLAN_ID_PRO_MONTHLY',
+    planIdEnvVarAnnual: 'RAZORPAY_PLAN_ID_PRO_ANNUAL',
     maxProjects: 10,
     retentionDays: 90,
     features: [
@@ -64,9 +67,9 @@ export const PLANS: PlanDefinition[] = [
     id: 'team',
     name: 'Team',
     tagline: 'Unlimited scale for growing orgs',
-    priceMonthly: 99,
-    priceIdEnvVar: 'STRIPE_PRICE_ID_TEAM_MONTHLY',
-    priceIdEnvVarAnnual: 'STRIPE_PRICE_ID_TEAM_ANNUAL',
+    priceMonthly: 8999,
+    planIdEnvVar: 'RAZORPAY_PLAN_ID_TEAM_MONTHLY',
+    planIdEnvVarAnnual: 'RAZORPAY_PLAN_ID_TEAM_ANNUAL',
     maxProjects: null,
     retentionDays: null,
     features: [
@@ -84,6 +87,6 @@ export function getPlanById(planId: string | null | undefined): PlanDefinition {
   return PLANS.find((plan) => plan.id === planId) || PLANS[0];
 }
 
-export function getPriceIdEnvVar(plan: PlanDefinition, interval: BillingInterval): string | undefined {
-  return interval === 'annual' ? plan.priceIdEnvVarAnnual : plan.priceIdEnvVar;
+export function getPlanIdEnvVar(plan: PlanDefinition, interval: BillingInterval): string | undefined {
+  return interval === 'annual' ? plan.planIdEnvVarAnnual : plan.planIdEnvVar;
 }

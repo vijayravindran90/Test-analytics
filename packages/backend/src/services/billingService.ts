@@ -1,45 +1,55 @@
-import Stripe from 'stripe';
-import { PLANS, PlanId, BillingInterval, getPlanById, getPriceIdEnvVar } from 'test-analytics-shared';
+import crypto from 'crypto';
+import Razorpay from 'razorpay';
+import { PLANS, PlanId, BillingInterval, getPlanById, getPlanIdEnvVar } from 'test-analytics-shared';
 import userService from './userService';
 
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
-const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
+const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET;
 
-let stripeClient: Stripe | null = null;
+// Razorpay subscriptions require a bounded number of billing cycles rather than
+// "renew forever" - 10 years' worth of cycles is effectively indefinite for a
+// SaaS subscription that the user can cancel anytime.
+const TOTAL_COUNT_BY_INTERVAL: Record<BillingInterval, number> = {
+  monthly: 120,
+  annual: 10,
+};
 
-function getStripeClient(): Stripe {
-  if (!STRIPE_SECRET_KEY) {
-    throw new Error('Stripe is not configured on this server (missing STRIPE_SECRET_KEY)');
+let razorpayClient: Razorpay | null = null;
+
+function getRazorpayClient(): Razorpay {
+  if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
+    throw new Error('Razorpay is not configured on this server (missing RAZORPAY_KEY_ID/RAZORPAY_KEY_SECRET)');
   }
 
-  if (!stripeClient) {
-    stripeClient = new Stripe(STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+  if (!razorpayClient) {
+    razorpayClient = new Razorpay({ key_id: RAZORPAY_KEY_ID, key_secret: RAZORPAY_KEY_SECRET });
   }
 
-  return stripeClient;
+  return razorpayClient;
 }
 
-export function isStripeConfigured(): boolean {
-  return Boolean(STRIPE_SECRET_KEY);
+export function isBillingConfigured(): boolean {
+  return Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET);
 }
 
-function priceIdForPlan(planId: PlanId, interval: BillingInterval): string | null {
+function planIdForPlan(planId: PlanId, interval: BillingInterval): string | null {
   const plan = getPlanById(planId);
-  const envVar = getPriceIdEnvVar(plan, interval);
+  const envVar = getPlanIdEnvVar(plan, interval);
   if (!envVar) {
     return null;
   }
   return process.env[envVar] || null;
 }
 
-function planIdForPriceId(priceId: string | null | undefined): PlanId | null {
-  if (!priceId) {
+function planIdFromRazorpayPlanId(razorpayPlanId: string | null | undefined): PlanId | null {
+  if (!razorpayPlanId) {
     return null;
   }
 
   for (const plan of PLANS) {
-    const envVars = [plan.priceIdEnvVar, plan.priceIdEnvVarAnnual].filter(Boolean) as string[];
-    if (envVars.some((envVar) => process.env[envVar] === priceId)) {
+    const envVars = [plan.planIdEnvVar, plan.planIdEnvVarAnnual].filter(Boolean) as string[];
+    if (envVars.some((envVar) => process.env[envVar] === razorpayPlanId)) {
       return plan.id;
     }
   }
@@ -47,142 +57,114 @@ function planIdForPriceId(priceId: string | null | undefined): PlanId | null {
   return null;
 }
 
-async function getOrCreateStripeCustomer(userId: string, email: string): Promise<string> {
-  const stripe = getStripeClient();
-  const billingProfile = await userService.getBillingProfile(userId);
-
-  if (billingProfile?.stripeCustomerId) {
-    return billingProfile.stripeCustomerId;
-  }
-
-  const customer = await stripe.customers.create({
-    email,
-    metadata: { userId },
-  });
-
-  await userService.setStripeCustomerId(userId, customer.id);
-  return customer.id;
-}
-
-export async function createCheckoutSession(
+export async function createSubscriptionCheckout(
   userId: string,
   email: string,
   planId: PlanId,
-  interval: BillingInterval,
-  successUrl: string,
-  cancelUrl: string
+  interval: BillingInterval
 ): Promise<string> {
-  const stripe = getStripeClient();
+  const razorpay = getRazorpayClient();
   const plan = getPlanById(planId);
 
   if (plan.comingSoon) {
     throw new Error(`The ${plan.name} plan isn't available yet`);
   }
 
-  const priceId = priceIdForPlan(planId, interval);
-
-  if (!priceId) {
-    throw new Error(`No Stripe price configured for plan "${planId}" (${interval})`);
+  const razorpayPlanId = planIdForPlan(planId, interval);
+  if (!razorpayPlanId) {
+    throw new Error(`No Razorpay plan configured for "${planId}" (${interval})`);
   }
 
-  const customerId = await getOrCreateStripeCustomer(userId, email);
-
-  const session = await stripe.checkout.sessions.create({
-    mode: 'subscription',
-    customer: customerId,
-    line_items: [{ price: priceId, quantity: 1 }],
-    success_url: successUrl,
-    cancel_url: cancelUrl,
-    metadata: { userId, planId, interval },
-    subscription_data: {
-      metadata: { userId, planId, interval },
-    },
+  const subscription = await razorpay.subscriptions.create({
+    plan_id: razorpayPlanId,
+    customer_notify: 1,
+    total_count: TOTAL_COUNT_BY_INTERVAL[interval],
+    notes: { userId, email, planId, interval },
   });
 
-  if (!session.url) {
-    throw new Error('Stripe did not return a checkout session URL');
+  if (!subscription.short_url) {
+    throw new Error('Razorpay did not return a subscription checkout URL');
   }
 
-  return session.url;
+  return subscription.short_url;
 }
 
-export async function createPortalSession(userId: string, returnUrl: string): Promise<string> {
-  const stripe = getStripeClient();
+export async function cancelSubscription(userId: string): Promise<void> {
+  const razorpay = getRazorpayClient();
   const billingProfile = await userService.getBillingProfile(userId);
 
-  if (!billingProfile?.stripeCustomerId) {
-    throw new Error('No billing account found for this user yet. Subscribe to a plan first.');
+  if (!billingProfile?.razorpaySubscriptionId) {
+    throw new Error('No active subscription found for this account');
   }
 
-  const session = await stripe.billingPortal.sessions.create({
-    customer: billingProfile.stripeCustomerId,
-    return_url: returnUrl,
-  });
-
-  return session.url;
+  // Cancel at the end of the current billing cycle so the user keeps access
+  // through what they already paid for, rather than cutting it off immediately.
+  await razorpay.subscriptions.cancel(billingProfile.razorpaySubscriptionId, true);
 }
 
-export function constructWebhookEvent(rawBody: Buffer, signature: string): Stripe.Event {
-  const stripe = getStripeClient();
-  if (!STRIPE_WEBHOOK_SECRET) {
-    throw new Error('Stripe webhook secret is not configured (missing STRIPE_WEBHOOK_SECRET)');
+export function verifyWebhookSignature(rawBody: Buffer, signature: string): void {
+  if (!RAZORPAY_WEBHOOK_SECRET) {
+    throw new Error('Razorpay webhook secret is not configured (missing RAZORPAY_WEBHOOK_SECRET)');
   }
 
-  return stripe.webhooks.constructEvent(rawBody, signature, STRIPE_WEBHOOK_SECRET);
+  const expected = crypto.createHmac('sha256', RAZORPAY_WEBHOOK_SECRET).update(rawBody).digest('hex');
+
+  const expectedBuffer = Buffer.from(expected, 'utf8');
+  const signatureBuffer = Buffer.from(signature, 'utf8');
+
+  if (expectedBuffer.length !== signatureBuffer.length || !crypto.timingSafeEqual(expectedBuffer, signatureBuffer)) {
+    throw new Error('Invalid Razorpay webhook signature');
+  }
 }
 
-export async function handleWebhookEvent(event: Stripe.Event): Promise<void> {
-  switch (event.type) {
-    case 'checkout.session.completed': {
-      const session = event.data.object as Stripe.Checkout.Session;
-      const userId = session.metadata?.userId;
-      const planId = session.metadata?.planId as PlanId | undefined;
-      const subscriptionId = typeof session.subscription === 'string' ? session.subscription : session.subscription?.id;
+interface RazorpaySubscriptionEntity {
+  id: string;
+  plan_id: string;
+  status: string;
+  current_end?: number | null;
+  notes?: { userId?: string };
+}
 
-      if (userId && planId) {
-        await userService.updateSubscription(userId, {
-          plan: planId,
-          stripeSubscriptionId: subscriptionId || null,
-          subscriptionStatus: 'active',
-        });
-      }
+export async function handleWebhookEvent(event: { event: string; payload: Record<string, any> }): Promise<void> {
+  const subscription: RazorpaySubscriptionEntity | undefined = event.payload?.subscription?.entity;
+
+  if (!subscription) {
+    return;
+  }
+
+  const userId = subscription.notes?.userId;
+  const billingProfile = userId
+    ? await userService.getBillingProfile(userId)
+    : await userService.getBillingProfileByRazorpaySubscriptionId(subscription.id);
+
+  if (!billingProfile) {
+    return;
+  }
+
+  const currentPeriodEnd = subscription.current_end ? new Date(subscription.current_end * 1000) : null;
+
+  switch (event.event) {
+    case 'subscription.activated':
+    case 'subscription.charged': {
+      const resolvedPlan = planIdFromRazorpayPlanId(subscription.plan_id) || billingProfile.plan;
+      await userService.updateSubscription(billingProfile.id, {
+        plan: resolvedPlan,
+        razorpaySubscriptionId: subscription.id,
+        subscriptionStatus: 'active',
+        currentPeriodEnd,
+      });
       break;
     }
 
-    case 'customer.subscription.updated':
-    case 'customer.subscription.created': {
-      const subscription = event.data.object as Stripe.Subscription;
-      const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id;
-      const billingProfile = await userService.getBillingProfileByStripeCustomerId(customerId);
-
-      if (billingProfile) {
-        const priceId = subscription.items.data[0]?.price?.id;
-        const resolvedPlan = planIdForPriceId(priceId) || billingProfile.plan;
-        const isActive = subscription.status === 'active' || subscription.status === 'trialing';
-
-        await userService.updateSubscription(billingProfile.id, {
-          plan: isActive ? resolvedPlan : 'free',
-          stripeSubscriptionId: subscription.id,
-          subscriptionStatus: subscription.status,
-          currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-        });
-      }
-      break;
-    }
-
-    case 'customer.subscription.deleted': {
-      const subscription = event.data.object as Stripe.Subscription;
-      const customerId = typeof subscription.customer === 'string' ? subscription.customer : subscription.customer.id;
-      const billingProfile = await userService.getBillingProfileByStripeCustomerId(customerId);
-
-      if (billingProfile) {
-        await userService.updateSubscription(billingProfile.id, {
-          plan: 'free',
-          stripeSubscriptionId: null,
-          subscriptionStatus: 'canceled',
-          currentPeriodEnd: null,
-        });
-      }
+    case 'subscription.cancelled':
+    case 'subscription.completed':
+    case 'subscription.halted': {
+      await userService.updateSubscription(billingProfile.id, {
+        plan: 'free',
+        razorpaySubscriptionId: null,
+        subscriptionStatus: event.event === 'subscription.halted' ? 'halted' : 'canceled',
+        currentPeriodEnd: null,
+      });
       break;
     }
 

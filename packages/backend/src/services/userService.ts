@@ -31,8 +31,7 @@ interface BillingProfile {
   id: string;
   email: string;
   plan: PlanId;
-  stripeCustomerId?: string;
-  stripeSubscriptionId?: string;
+  razorpaySubscriptionId?: string;
   subscriptionStatus?: string;
   currentPeriodEnd?: Date;
 }
@@ -46,8 +45,7 @@ interface DbUserRow {
   name?: string;
   avatar_url?: string;
   plan: PlanId;
-  stripe_customer_id?: string;
-  stripe_subscription_id?: string;
+  razorpay_subscription_id?: string;
   subscription_status?: string;
   current_period_end?: Date;
   created_at: Date;
@@ -176,7 +174,7 @@ export class UserService {
 
   async getBillingProfile(userId: string): Promise<BillingProfile | null> {
     const result = await pool.query(
-      `SELECT id, email, plan, stripe_customer_id, stripe_subscription_id, subscription_status, current_period_end
+      `SELECT id, email, plan, razorpay_subscription_id, subscription_status, current_period_end
        FROM users
        WHERE id = $1`,
       [userId]
@@ -191,19 +189,18 @@ export class UserService {
       id: row.id,
       email: row.email,
       plan: row.plan,
-      stripeCustomerId: row.stripe_customer_id,
-      stripeSubscriptionId: row.stripe_subscription_id,
+      razorpaySubscriptionId: row.razorpay_subscription_id,
       subscriptionStatus: row.subscription_status,
       currentPeriodEnd: row.current_period_end,
     };
   }
 
-  async getBillingProfileByStripeCustomerId(stripeCustomerId: string): Promise<BillingProfile | null> {
+  async getBillingProfileByRazorpaySubscriptionId(razorpaySubscriptionId: string): Promise<BillingProfile | null> {
     const result = await pool.query(
-      `SELECT id, email, plan, stripe_customer_id, stripe_subscription_id, subscription_status, current_period_end
+      `SELECT id, email, plan, razorpay_subscription_id, subscription_status, current_period_end
        FROM users
-       WHERE stripe_customer_id = $1`,
-      [stripeCustomerId]
+       WHERE razorpay_subscription_id = $1`,
+      [razorpaySubscriptionId]
     );
 
     if (result.rows.length === 0) {
@@ -215,25 +212,17 @@ export class UserService {
       id: row.id,
       email: row.email,
       plan: row.plan,
-      stripeCustomerId: row.stripe_customer_id,
-      stripeSubscriptionId: row.stripe_subscription_id,
+      razorpaySubscriptionId: row.razorpay_subscription_id,
       subscriptionStatus: row.subscription_status,
       currentPeriodEnd: row.current_period_end,
     };
-  }
-
-  async setStripeCustomerId(userId: string, stripeCustomerId: string): Promise<void> {
-    await pool.query(
-      `UPDATE users SET stripe_customer_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
-      [stripeCustomerId, userId]
-    );
   }
 
   async updateSubscription(
     userId: string,
     updates: {
       plan: PlanId;
-      stripeSubscriptionId?: string | null;
+      razorpaySubscriptionId?: string | null;
       subscriptionStatus?: string | null;
       currentPeriodEnd?: Date | null;
     }
@@ -241,12 +230,12 @@ export class UserService {
     await pool.query(
       `UPDATE users
        SET plan = $1,
-           stripe_subscription_id = $2,
+           razorpay_subscription_id = $2,
            subscription_status = $3,
            current_period_end = $4,
            updated_at = CURRENT_TIMESTAMP
        WHERE id = $5`,
-      [updates.plan, updates.stripeSubscriptionId || null, updates.subscriptionStatus || null, updates.currentPeriodEnd || null, userId]
+      [updates.plan, updates.razorpaySubscriptionId || null, updates.subscriptionStatus || null, updates.currentPeriodEnd || null, userId]
     );
   }
 

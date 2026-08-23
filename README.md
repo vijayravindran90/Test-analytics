@@ -18,7 +18,7 @@ A comprehensive test reporting and analytics dashboard for Playwright tests, sim
 - **Marketing Home Page**: Public landing page with product overview and feature highlights for visitors who aren't signed in
 - **Pricing Plans**: Free (14-day trial) / Pro ($12/mo billed monthly, $10/mo billed annually) tiers with per-plan project limits, shown on `/pricing` and reused on the in-app billing page. Team is shown with a "Coming soon" badge and isn't purchasable yet.
 - **14-Day Free Trial**: The Free plan is time-limited (`FREE_TRIAL_DAYS` in `packages/shared/src/plans.ts`). A banner shows days remaining; once it expires, project dashboards and project creation are blocked (HTTP 402) until the user upgrades. A canceled/lapsed paid subscription reverts to the Free plan and is subject to the same trial gate.
-- **Stripe Billing**: Checkout, customer portal and subscription webhooks for upgrading/downgrading plans (optional, see setup below)
+- **Razorpay Billing**: Subscription checkout and webhooks for upgrading/downgrading plans, priced in INR (optional, see setup below)
 
 ### 🧠 Advanced Analytics (NEW)
 - **Confidence Score**: A single 0-100 score per project, weighted from pass rate (50%), stability (30%) and how recently tests ran (20%)
@@ -146,7 +146,7 @@ Without SMTP configured, verification links are printed to the backend's console
 
 ### Optional: Create a Test Account
 
-For exploring the app (or letting someone else try it) without going through Google/SMTP/Stripe setup, seed a permanent test account: pre-verified, on the Pro plan, never trial-limited.
+For exploring the app (or letting someone else try it) without going through Google/SMTP/Razorpay setup, seed a permanent test account: pre-verified, on the Pro plan, never trial-limited.
 
 **From a browser**, once deployed: set `ADMIN_KEY` in the backend's environment, then visit
 ```
@@ -181,18 +181,23 @@ npm run seed:demo-data            # local dev, ts-node - also creates the test a
 DATABASE_URL=<connection-string> npm run seed:demo-data:prod   # after `npm run build`
 ```
 
-### Optional: Set Up Stripe Billing
+### Optional: Set Up Razorpay Billing
 
-1. Create a [Stripe](https://dashboard.stripe.com) account and, on the Pro product, create **two** recurring Prices matching `packages/shared/src/plans.ts`: $12/month billed monthly, and $10/month ($120/year) billed annually. Team is marked "Coming soon" in the UI and isn't purchasable yet, so its Prices aren't required until it launches.
+Billing is powered by [Razorpay](https://dashboard.razorpay.com) Subscriptions, priced in INR (₹999/month Pro, ₹833/month billed annually — matching `packages/shared/src/plans.ts`). Razorpay is invite-only for new India-registered businesses as of 2026 (self-serve signup is closed); request access via Razorpay's sales team if you don't already have an account.
+
+1. In the Razorpay Dashboard, create a **Plan** for Pro billed monthly (₹999) and a second Plan for Pro billed annually (₹9,996/year, i.e. ₹833/month) under **Product catalog**. Team is marked "Coming soon" in the UI and isn't purchasable yet, so its Plans aren't required until it launches.
 2. Add to `packages/backend/.env`:
    ```ini
-   STRIPE_SECRET_KEY=sk_test_...
-   STRIPE_PRICE_ID_PRO_MONTHLY=price_...
-   STRIPE_PRICE_ID_PRO_ANNUAL=price_...
-   STRIPE_WEBHOOK_SECRET=whsec_...
+   RAZORPAY_KEY_ID=rzp_test_...
+   RAZORPAY_KEY_SECRET=...
+   RAZORPAY_PLAN_ID_PRO_MONTHLY=plan_...
+   RAZORPAY_PLAN_ID_PRO_ANNUAL=plan_...
+   RAZORPAY_WEBHOOK_SECRET=...
    ```
-3. Point a Stripe webhook at `POST {your-backend-url}/api/billing/webhook`, subscribed to `checkout.session.completed`, `customer.subscription.updated` and `customer.subscription.deleted`. Use the Stripe CLI (`stripe listen --forward-to localhost:3001/api/billing/webhook`) for local testing.
-4. Once configured, the pricing page and the in-app **Billing** page (from the profile menu) let users toggle monthly/annual billing and start a Stripe Checkout session, then manage their subscription through the Stripe customer portal. Without these variables set, the pricing page still renders but checkout returns a friendly "billing is not configured" error.
+3. Under **Developers → Webhooks**, add an endpoint at `POST {your-backend-url}/api/billing/webhook`, subscribed to `subscription.activated`, `subscription.charged`, `subscription.cancelled`, `subscription.completed` and `subscription.halted`. Copy its signing secret into `RAZORPAY_WEBHOOK_SECRET`.
+4. Once configured, the pricing page and the in-app **Billing** page (from the profile menu) let users toggle monthly/annual billing and start a Razorpay subscription checkout; from the Billing page they can cancel an active subscription (effective at the end of the current billing period). Without these variables set, the pricing page still renders but checkout returns a friendly "billing is not configured" error.
+
+Unlike Stripe, Razorpay doesn't provide a hosted self-service portal for updating a saved card or invoices — that gap is covered by canceling and re-subscribing, or by adding a support contact for account changes.
 
 Plan limits (e.g. max projects per plan) are enforced in the backend when a plan's project cap is defined; retention-day limits shown on the pricing page are informational only and are not yet automatically enforced.
 
@@ -222,7 +227,7 @@ Starting with v1.1.0, the dashboard requires user authentication. All test data 
 
 1. Open the dashboard at `http://localhost:3000`
 2. Click **"Get Started"** in the top right — this takes you to `/pricing` first
-3. Choose a plan (Free starts a 14-day trial; Pro/Team go to Stripe Checkout after sign-in)
+3. Choose a plan (Free starts a 14-day trial; Pro/Team go to Razorpay Checkout after sign-in)
 4. Sign in either with **"Continue with Google"**, or register with your email and password
 5. If you registered with email/password, check your inbox for a verification link — you won't be able to create projects or view dashboards until you click it (Google sign-in skips this step, since Google already verified your email)
 
@@ -326,12 +331,11 @@ curl -H "Authorization: Bearer YOUR_JWT_TOKEN" http://localhost:3001/api/project
 
 - `GET /api/billing/plans` - Public pricing plan catalog (no auth required)
 - `GET /api/billing/subscription` - Current user's plan, subscription status, and trial info (`trialDaysLeft`, `accessAllowed`) (requires auth)
-- `POST /api/billing/checkout` - Create a Stripe Checkout session for a paid plan
-  - Body: `{ planId }` (`pro` or `team`)
+- `POST /api/billing/checkout` - Create a Razorpay subscription checkout for a paid plan
+  - Body: `{ planId, interval }` (`planId`: `pro` or `team`; `interval`: `monthly` or `annual`)
   - Returns: `{ url }` to redirect the browser to
-- `POST /api/billing/portal` - Create a Stripe customer portal session for the current user
-  - Returns: `{ url }` to redirect the browser to
-- `POST /api/billing/webhook` - Stripe webhook receiver (called by Stripe, not the frontend)
+- `POST /api/billing/cancel` - Cancel the current user's active subscription (effective at the end of the current billing period)
+- `POST /api/billing/webhook` - Razorpay webhook receiver (called by Razorpay, not the frontend)
 
 ### Admin
 

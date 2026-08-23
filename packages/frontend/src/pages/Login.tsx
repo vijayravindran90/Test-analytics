@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation, useSearchParams, Link } from 'react-router-dom';
-import { getPlanById, BillingInterval } from 'test-analytics-shared';
+import { getPlanById, BillingInterval, CURRENCY_SYMBOL } from 'test-analytics-shared';
 import { useAuth } from '../auth/AuthContext';
 import GoogleSignInButton from '../components/GoogleSignInButton';
 import apiClient from '../api/client';
@@ -161,8 +161,8 @@ export default function Login() {
         {plan.priceMonthly === 0
           ? ' (14-day free trial)'
           : interval === 'annual' && plan.priceAnnualMonthly !== undefined
-          ? ` ($${plan.priceAnnualMonthly}/month, billed annually)`
-          : ` ($${plan.priceMonthly}/month)`}
+          ? ` (${CURRENCY_SYMBOL}${plan.priceAnnualMonthly}/month, billed annually)`
+          : ` (${CURRENCY_SYMBOL}${plan.priceMonthly}/month)`}
       </div>
 
       <div className="mt-6">

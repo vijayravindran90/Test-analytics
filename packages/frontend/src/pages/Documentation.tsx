@@ -301,7 +301,7 @@ GITHUB_ACTOR`}</CodeBlock>
               <KeyRound className="h-5 w-5" />
             </div>
             <p className="mt-3 text-neutral-600">
-              Free starts a 14-day trial (1 project). Pro is $12/month billed monthly, or $10/month billed annually, and
+              Free starts a 14-day trial (1 project). Pro is ₹999/month billed monthly, or ₹833/month billed annually, and
               raises the project limit and history window. See{' '}
               <Link to="/pricing" className="text-primary-600 hover:underline">Pricing</Link> for the full comparison, or{' '}
               <Link to="/billing" className="text-primary-600 hover:underline">Billing</Link> (from your profile menu) to
