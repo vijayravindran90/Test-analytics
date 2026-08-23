@@ -348,6 +348,14 @@ router.post('/tests/batch', async (req: Request, res: Response) => {
       }
     }
 
+    // An identified reporter (JWT or API key) is held to the same access rules as the
+    // rest of the app - an unverified email or an expired trial blocks ingestion too,
+    // not just viewing dashboards or clicking "New Project". Anonymous/unauthenticated
+    // submissions (no apiUser) are intentionally left ungated, unchanged from before.
+    if (apiUser && !(await ensureActiveSubscription(apiUser.id, res))) {
+      return;
+    }
+
     // Ensure project exists
     let project = null;
     if (projectId && validateUuid(projectId)) {

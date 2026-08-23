@@ -294,13 +294,13 @@ curl -H "Authorization: Bearer YOUR_JWT_TOKEN" http://localhost:3001/api/project
   - Returns: `{ url }` to redirect the browser to
 - `POST /api/billing/portal` - Create a Stripe customer portal session for the current user
   - Returns: `{ url }` to redirect the browser to
+- `POST /api/billing/webhook` - Stripe webhook receiver (called by Stripe, not the frontend)
 
-All project-data endpoints (dashboard, metrics, module heatmap, etc.) and `POST /api/projects` are gated by the same access check:
+All project-data endpoints (dashboard, metrics, module heatmap, etc.), `POST /api/projects`, and `POST /api/tests/batch` (the Playwright reporter's ingestion endpoint, whenever it's called with a Bearer token or API key identifying a user) are gated by the same access check:
 - `403 { error, code: 'EMAIL_NOT_VERIFIED' }` if the account's email isn't verified yet (checked before the trial, regardless of plan)
 - `402 { error, code: 'TRIAL_EXPIRED' }` once a Free-plan user's trial has ended
 
-The frontend's axios client redirects to `/billing` automatically on a 402; a 403 with that code surfaces the persistent "verify your email" banner instead.
-- `POST /api/billing/webhook` - Stripe webhook receiver (called by Stripe, not the frontend)
+Unauthenticated/anonymous `POST /api/tests/batch` submissions (no token at all) are intentionally left ungated, unchanged from before. The frontend's axios client redirects to `/billing` automatically on a 402; a 403 with that code surfaces the persistent "verify your email" banner instead.
 
 ### Projects
 
