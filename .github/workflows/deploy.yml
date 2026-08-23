@@ -42,6 +42,10 @@ jobs:
           # Example: https://your-project.up.railway.app/api
           #REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL || 'https://your-backend-url.com/api' }}
           REACT_APP_API_URL: https://test-analytics-production.up.railway.app/api
+          # Set this secret in GitHub repository settings to the OAuth Client ID from
+          # Google Cloud Console (Credentials -> OAuth 2.0 Client IDs). Leaving it unset
+          # keeps "Continue with Google" hidden on the login page.
+          VITE_GOOGLE_CLIENT_ID: ${{ secrets.VITE_GOOGLE_CLIENT_ID }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
