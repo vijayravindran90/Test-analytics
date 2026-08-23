@@ -7,18 +7,21 @@ import { useSubscription } from '../api/hooks';
 export default function Billing() {
   const { subscription, loading, error: loadError } = useSubscription();
   const [error, setError] = useState<string | null>(null);
-  const [openingPortal, setOpeningPortal] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+  const [canceled, setCanceled] = useState(false);
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
 
-  const handleManageBilling = async () => {
-    setOpeningPortal(true);
+  const handleCancelSubscription = async () => {
+    setCanceling(true);
     setError(null);
     try {
-      const response = await apiClient.post('/billing/portal');
-      window.location.href = response.data.url;
+      await apiClient.post('/billing/cancel');
+      setCanceled(true);
+      setConfirmingCancel(false);
     } catch (err: any) {
-      setError(err?.response?.data?.error || 'Unable to open the billing portal');
+      setError(err?.response?.data?.error || 'Unable to cancel your subscription');
     } finally {
-      setOpeningPortal(false);
+      setCanceling(false);
     }
   };
 
@@ -46,16 +49,39 @@ export default function Billing() {
                     : 'Your free trial has ended'}
                 </p>
               )}
+              {canceled && (
+                <p className="mt-1 text-sm text-neutral-500">
+                  Your subscription is canceled and won't renew. You'll keep access until the end of the current period.
+                </p>
+              )}
             </div>
-            {subscription.hasBillingAccount && (
-              <button
-                type="button"
-                onClick={handleManageBilling}
-                disabled={openingPortal}
-                className="btn btn-secondary"
-              >
-                {openingPortal ? 'Opening...' : 'Manage billing'}
-              </button>
+            {subscription.hasBillingAccount && !canceled && (
+              <div>
+                {confirmingCancel ? (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCancelSubscription}
+                      disabled={canceling}
+                      className="btn btn-secondary border-danger-200 text-danger-700 hover:bg-danger-50"
+                    >
+                      {canceling ? 'Canceling...' : 'Confirm cancel'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingCancel(false)}
+                      disabled={canceling}
+                      className="btn btn-secondary"
+                    >
+                      Keep subscription
+                    </button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setConfirmingCancel(true)} className="btn btn-secondary">
+                    Cancel subscription
+                  </button>
+                )}
+              </div>
             )}
           </div>
         ) : null}

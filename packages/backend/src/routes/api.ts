@@ -8,7 +8,7 @@ import userService from '../services/userService';
 import { signAuthToken, verifyAuthToken } from '../auth';
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth';
 import { isGoogleSignInConfigured, verifyGoogleIdToken } from '../services/googleAuth';
-import { createCheckoutSession, createPortalSession, isStripeConfigured } from '../services/billingService';
+import { createSubscriptionCheckout, cancelSubscription, isBillingConfigured } from '../services/billingService';
 import { sendVerificationEmail } from '../services/emailService';
 import { seedTestAccount, DEFAULT_TEST_ACCOUNT_EMAIL } from '../services/testAccountService';
 import { seedDemoProject } from '../services/demoDataService';
@@ -254,7 +254,7 @@ router.post('/auth/api-key', requireAuth, async (req: AuthenticatedRequest, res:
 
 // Public pricing plan catalog
 router.get('/billing/plans', async (req: Request, res: Response) => {
-  res.json({ plans: PLANS, billingEnabled: isStripeConfigured() });
+  res.json({ plans: PLANS, billingEnabled: isBillingConfigured() });
 });
 
 router.get('/billing/subscription', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
@@ -270,7 +270,7 @@ router.get('/billing/subscription', requireAuth, async (req: AuthenticatedReques
       plan: getPlanById(profile.plan),
       subscriptionStatus: profile.subscriptionStatus,
       currentPeriodEnd: profile.currentPeriodEnd,
-      hasBillingAccount: Boolean(profile.stripeCustomerId),
+      hasBillingAccount: Boolean(profile.razorpaySubscriptionId),
       trialDaysLeft: accessStatus.trialDaysLeft,
       accessAllowed: accessStatus.allowed,
       emailVerified: accessStatus.emailVerified,
@@ -283,7 +283,7 @@ router.get('/billing/subscription', requireAuth, async (req: AuthenticatedReques
 
 router.post('/billing/checkout', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    if (!isStripeConfigured()) {
+    if (!isBillingConfigured()) {
       return res.status(503).json({ error: 'Billing is not configured on this server' });
     }
 
@@ -291,19 +291,11 @@ router.post('/billing/checkout', requireAuth, async (req: AuthenticatedRequest, 
     const plan = PLANS.find((p) => p.id === planId);
     const billingInterval: BillingInterval = interval === 'annual' ? 'annual' : 'monthly';
 
-    if (!plan || !plan.priceIdEnvVar || plan.comingSoon) {
+    if (!plan || !plan.planIdEnvVar || plan.comingSoon) {
       return res.status(400).json({ error: 'Invalid plan selected' });
     }
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const url = await createCheckoutSession(
-      req.user!.id,
-      req.user!.email,
-      plan.id as PlanId,
-      billingInterval,
-      `${frontendUrl}/#/billing?checkout=success`,
-      `${frontendUrl}/#/pricing?checkout=canceled`
-    );
+    const url = await createSubscriptionCheckout(req.user!.id, req.user!.email, plan.id as PlanId, billingInterval);
 
     res.json({ url });
   } catch (error: any) {
@@ -312,18 +304,17 @@ router.post('/billing/checkout', requireAuth, async (req: AuthenticatedRequest, 
   }
 });
 
-router.post('/billing/portal', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+router.post('/billing/cancel', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
-    if (!isStripeConfigured()) {
+    if (!isBillingConfigured()) {
       return res.status(503).json({ error: 'Billing is not configured on this server' });
     }
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-    const url = await createPortalSession(req.user!.id, `${frontendUrl}/#/billing`);
-    res.json({ url });
+    await cancelSubscription(req.user!.id);
+    res.json({ success: true });
   } catch (error: any) {
-    console.error('Error creating billing portal session:', error);
-    res.status(400).json({ error: error?.message || 'Failed to open billing portal' });
+    console.error('Error canceling subscription:', error);
+    res.status(400).json({ error: error?.message || 'Failed to cancel subscription' });
   }
 });
 

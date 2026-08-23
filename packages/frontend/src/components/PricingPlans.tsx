@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Check, Clock } from 'lucide-react';
-import { PLANS, PlanId, BillingInterval } from 'test-analytics-shared';
+import { PLANS, PlanId, BillingInterval, CURRENCY_SYMBOL } from 'test-analytics-shared';
 import { useAuth } from '../auth/AuthContext';
 import apiClient from '../api/client';
 import { useNavigate } from 'react-router-dom';
@@ -101,11 +101,13 @@ export default function PricingPlans({ currentPlan }: PricingPlansProps) {
               <p className="mt-1 text-sm text-neutral-600">{plan.tagline}</p>
 
               <div className="mt-4 flex items-baseline gap-1">
-                <span className="text-4xl font-bold">${displayPrice}</span>
+                <span className="text-4xl font-bold">{CURRENCY_SYMBOL}{displayPrice}</span>
                 <span className="text-neutral-500">/month</span>
               </div>
               {showAnnual && plan.priceMonthly > 0 && (
-                <p className="mt-1 text-xs text-neutral-500">Billed annually (${plan.priceAnnualMonthly! * 12}/year)</p>
+                <p className="mt-1 text-xs text-neutral-500">
+                  Billed annually ({CURRENCY_SYMBOL}{plan.priceAnnualMonthly! * 12}/year)
+                </p>
               )}
 
               <ul className="mt-6 flex-1 space-y-3">

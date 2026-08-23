@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 import apiRoutes from './routes/api';
-import { handleStripeWebhook } from './routes/webhook';
+import { handleRazorpayWebhook } from './routes/webhook';
 
 dotenv.config();
 
@@ -12,9 +12,9 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const ENV = process.env.NODE_ENV || 'development';
 
-// Stripe webhook needs the raw request body for signature verification,
+// Razorpay webhook needs the raw request body for signature verification,
 // so it must be registered before the JSON body parser below.
-app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
+app.post('/api/billing/webhook', express.raw({ type: 'application/json' }), handleRazorpayWebhook);
 
 // Middleware
 app.use(express.json({ limit: '50mb' }));

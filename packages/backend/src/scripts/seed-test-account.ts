@@ -2,7 +2,7 @@ import pool from '../db';
 import { seedTestAccount } from '../services/testAccountService';
 
 // A permanent, full-access account for exploring the app without going through
-// Stripe or email verification. Idempotent: re-running it never overwrites an
+// Razorpay or email verification. Idempotent: re-running it never overwrites an
 // existing password, it only refreshes the plan/verification bypass.
 async function main() {
   const result = await seedTestAccount({
