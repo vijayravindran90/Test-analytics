@@ -9,7 +9,9 @@
     "db:migrate": "ts-node src/scripts/run-migrations.ts",
     "db:migrate:prod": "node dist/scripts/run-migrations.js",
     "seed:test-account": "ts-node src/scripts/seed-test-account.ts",
-    "seed:test-account:prod": "node dist/scripts/seed-test-account.js"
+    "seed:test-account:prod": "node dist/scripts/seed-test-account.js",
+    "seed:demo-data": "ts-node src/scripts/seed-demo-data.ts",
+    "seed:demo-data:prod": "node dist/scripts/seed-demo-data.js"
   },
   "dependencies": {
     "axios": "^1.6.0",

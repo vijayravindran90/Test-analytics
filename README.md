@@ -163,6 +163,24 @@ DATABASE_URL=<connection-string> npm run seed:test-account:prod   # after `npm r
 ```
 Defaults to `tester@test-analytics.in` with a random password; override with `TEST_ACCOUNT_EMAIL` / `TEST_ACCOUNT_PASSWORD` / `TEST_ACCOUNT_RESET_PASSWORD` env vars. Both entry points call the same idempotent logic — re-running either just refreshes the plan/verification bypass without touching an existing password.
 
+### Optional: Seed Demo Data
+
+For marketing screenshots or exploring a dashboard that already has meaningful history, seed a demo project (`ShopWave E2E Suite` by default) with ~3 weeks of realistic multi-module, multi-browser test results — a deliberately flaky module, a recent performance regression, and enough spread to populate every dashboard feature: confidence score, guardrails, flaky tests, performance alerts, module heatmap, trend charts, and test runs.
+
+**From a browser**, once deployed:
+```
+https://<your-backend-url>/api/admin/seed-demo-data?adminKey=<your-admin-key>
+```
+Defaults to seeding under the test account (`tester@test-analytics.in`); add `&email=...` to target a different account, or `&projectName=...` to use a different project name. Re-running is safe — it wipes and re-generates that account's project of the same name rather than duplicating it.
+
+**From the command line**, equivalently:
+```bash
+cd packages/backend
+npm run seed:demo-data            # local dev, ts-node - also creates the test account if it doesn't exist yet
+# or, against a deployed database:
+DATABASE_URL=<connection-string> npm run seed:demo-data:prod   # after `npm run build`
+```
+
 ### Optional: Set Up Stripe Billing
 
 1. Create a [Stripe](https://dashboard.stripe.com) account and, on the Pro product, create **two** recurring Prices matching `packages/shared/src/plans.ts`: $12/month billed monthly, and $10/month ($120/year) billed annually. Team is marked "Coming soon" in the UI and isn't purchasable yet, so its Prices aren't required until it launches.
@@ -322,6 +340,9 @@ Both require `?adminKey=` (GET) or `{ adminKey }` (POST) matching the server's `
 - `GET/POST /api/admin/seed-test-account` - Create or refresh the permanent test account (see "Optional: Create a Test Account" above)
   - Query/body: `email?`, `password?`, `resetPassword?`
   - Returns: `{ success, created, email, password, plan, note }`
+- `GET/POST /api/admin/seed-demo-data` - Seed (or re-seed) a realistic demo project with ~3 weeks of history (see "Optional: Seed Demo Data" above)
+  - Query/body: `email?` (defaults to the test account), `projectName?`
+  - Returns: `{ success, email, projectId, projectName, testResultCount }`
 - `POST /api/admin/migrate` - One-off schema patch predating the migrations system; prefer `npm run db:migrate` instead
 
 All project-data endpoints (dashboard, metrics, module heatmap, etc.), `POST /api/projects`, and `POST /api/tests/batch` (the Playwright reporter's ingestion endpoint, whenever it's called with a Bearer token or API key identifying a user) are gated by the same access check:
