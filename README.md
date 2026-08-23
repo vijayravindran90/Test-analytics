@@ -148,14 +148,20 @@ Without SMTP configured, verification links are printed to the backend's console
 
 For exploring the app (or letting someone else try it) without going through Google/SMTP/Stripe setup, seed a permanent test account: pre-verified, on the Pro plan, never trial-limited.
 
+**From a browser**, once deployed: set `ADMIN_KEY` in the backend's environment, then visit
+```
+https://<your-backend-url>/api/admin/seed-test-account?adminKey=<your-admin-key>
+```
+The JSON response includes the email and password — save them immediately, the password isn't shown again (only a bcrypt hash is stored). Add `&email=...` / `&password=...` to pick your own, or `&resetPassword=<new-password>` on a later visit to change the password of an account that already exists. This endpoint requires `ADMIN_KEY` to be set; without it, it refuses to run. Since the key and password travel in the URL, don't share that link with anyone you don't want to have admin/test access, and treat your browser history accordingly.
+
+**From the command line**, equivalently:
 ```bash
 cd packages/backend
 npm run seed:test-account            # local dev, ts-node
-# or, against a deployed database:
-DATABASE_URL=<production-connection-string> npm run seed:test-account:prod   # after `npm run build`
+# or, against a deployed database (e.g. `railway run` so it uses Railway's own network):
+DATABASE_URL=<connection-string> npm run seed:test-account:prod   # after `npm run build`
 ```
-
-It prints the generated email/password once — save them, they aren't recoverable afterward (only a bcrypt hash is stored). Defaults to `tester@test-analytics.in` with a random password; override with `TEST_ACCOUNT_EMAIL` / `TEST_ACCOUNT_PASSWORD` env vars. Re-running it is safe (idempotent) — it just refreshes the plan/verification bypass and leaves the existing password alone, unless you also set `TEST_ACCOUNT_RESET_PASSWORD=<new-password>`.
+Defaults to `tester@test-analytics.in` with a random password; override with `TEST_ACCOUNT_EMAIL` / `TEST_ACCOUNT_PASSWORD` / `TEST_ACCOUNT_RESET_PASSWORD` env vars. Both entry points call the same idempotent logic — re-running either just refreshes the plan/verification bypass without touching an existing password.
 
 ### Optional: Set Up Stripe Billing
 
@@ -308,6 +314,15 @@ curl -H "Authorization: Bearer YOUR_JWT_TOKEN" http://localhost:3001/api/project
 - `POST /api/billing/portal` - Create a Stripe customer portal session for the current user
   - Returns: `{ url }` to redirect the browser to
 - `POST /api/billing/webhook` - Stripe webhook receiver (called by Stripe, not the frontend)
+
+### Admin
+
+Both require `?adminKey=` (GET) or `{ adminKey }` (POST) matching the server's `ADMIN_KEY` env var.
+
+- `GET/POST /api/admin/seed-test-account` - Create or refresh the permanent test account (see "Optional: Create a Test Account" above)
+  - Query/body: `email?`, `password?`, `resetPassword?`
+  - Returns: `{ success, created, email, password, plan, note }`
+- `POST /api/admin/migrate` - One-off schema patch predating the migrations system; prefer `npm run db:migrate` instead
 
 All project-data endpoints (dashboard, metrics, module heatmap, etc.), `POST /api/projects`, and `POST /api/tests/batch` (the Playwright reporter's ingestion endpoint, whenever it's called with a Bearer token or API key identifying a user) are gated by the same access check:
 - `403 { error, code: 'EMAIL_NOT_VERIFIED' }` if the account's email isn't verified yet (checked before the trial, regardless of plan)

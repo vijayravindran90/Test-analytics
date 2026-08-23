@@ -10,6 +10,7 @@ import { AuthenticatedRequest, requireAuth } from '../middleware/auth';
 import { isGoogleSignInConfigured, verifyGoogleIdToken } from '../services/googleAuth';
 import { createCheckoutSession, createPortalSession, isStripeConfigured } from '../services/billingService';
 import { sendVerificationEmail } from '../services/emailService';
+import { seedTestAccount } from '../services/testAccountService';
 
 interface TestResult {
   id: string;
@@ -919,6 +920,44 @@ router.delete('/projects/:projectId', requireAuth, async (req: AuthenticatedRequ
     res.status(500).json({ error: 'Failed to delete project' });
   }
 });
+
+// Seed (or refresh) a permanent, full-access test account - triggerable from a
+// browser by visiting this URL directly, so it deliberately accepts GET as well
+// as POST. Requires ADMIN_KEY to be set on the server (unlike /admin/migrate
+// below, there is no hardcoded fallback key).
+async function handleSeedTestAccount(req: Request, res: Response) {
+  try {
+    const adminKey = (req.method === 'GET' ? req.query.adminKey : req.body?.adminKey) as string | undefined;
+
+    if (!process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const params = req.method === 'GET' ? req.query : req.body;
+    const result = await seedTestAccount({
+      email: params.email as string | undefined,
+      password: params.password as string | undefined,
+      resetPassword: params.resetPassword as string | undefined,
+    });
+
+    res.json({
+      success: true,
+      created: result.created,
+      email: result.email,
+      password: result.password || '(unchanged - add &resetPassword=<new-password> to change it)',
+      plan: result.plan,
+      note: result.password
+        ? 'Save the password now - it is hashed in the database and cannot be recovered later.'
+        : 'Password unchanged from last time.',
+    });
+  } catch (error) {
+    console.error('Error seeding test account:', error);
+    res.status(500).json({ error: 'Failed to seed test account' });
+  }
+}
+
+router.get('/admin/seed-test-account', handleSeedTestAccount);
+router.post('/admin/seed-test-account', handleSeedTestAccount);
 
 // Run database migrations
 router.post('/admin/migrate', async (req: Request, res: Response) => {
