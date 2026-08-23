@@ -10,7 +10,8 @@ import { AuthenticatedRequest, requireAuth } from '../middleware/auth';
 import { isGoogleSignInConfigured, verifyGoogleIdToken } from '../services/googleAuth';
 import { createCheckoutSession, createPortalSession, isStripeConfigured } from '../services/billingService';
 import { sendVerificationEmail } from '../services/emailService';
-import { seedTestAccount } from '../services/testAccountService';
+import { seedTestAccount, DEFAULT_TEST_ACCOUNT_EMAIL } from '../services/testAccountService';
+import { seedDemoProject } from '../services/demoDataService';
 
 interface TestResult {
   id: string;
@@ -958,6 +959,45 @@ async function handleSeedTestAccount(req: Request, res: Response) {
 
 router.get('/admin/seed-test-account', handleSeedTestAccount);
 router.post('/admin/seed-test-account', handleSeedTestAccount);
+
+// Seed (or re-seed) a realistic demo project - ~3 weeks of history across
+// several modules/browsers, a deliberately flaky module, and a recent
+// performance regression - under a given account (defaults to the test
+// account). Also browser-triggerable, same ADMIN_KEY gate as above.
+async function handleSeedDemoData(req: Request, res: Response) {
+  try {
+    const adminKey = (req.method === 'GET' ? req.query.adminKey : req.body?.adminKey) as string | undefined;
+
+    if (!process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const params = req.method === 'GET' ? req.query : req.body;
+    const email = ((params.email as string | undefined) || DEFAULT_TEST_ACCOUNT_EMAIL).toLowerCase();
+    const projectName = params.projectName as string | undefined;
+
+    const user = await userService.getUserByEmail(email);
+    if (!user) {
+      return res.status(404).json({ error: `No account found for ${email}. Seed the test account first.` });
+    }
+
+    const result = await seedDemoProject(user.id, user.email, projectName);
+
+    res.json({
+      success: true,
+      email: user.email,
+      projectId: result.projectId,
+      projectName: result.projectName,
+      testResultCount: result.testResultCount,
+    });
+  } catch (error) {
+    console.error('Error seeding demo data:', error);
+    res.status(500).json({ error: 'Failed to seed demo data' });
+  }
+}
+
+router.get('/admin/seed-demo-data', handleSeedDemoData);
+router.post('/admin/seed-demo-data', handleSeedDemoData);
 
 // Run database migrations
 router.post('/admin/migrate', async (req: Request, res: Response) => {

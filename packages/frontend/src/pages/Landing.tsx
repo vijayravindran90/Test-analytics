@@ -3,6 +3,39 @@ import { Link } from 'react-router-dom';
 import { Activity, AlertTriangle, BarChart3, GitBranch, ShieldCheck, Zap } from 'lucide-react';
 import PricingPlans from '../components/PricingPlans';
 
+const SCREENSHOTS = [
+  {
+    src: '/screenshots/confidence-guardrails.png',
+    title: 'Confidence score & guardrails',
+    description: 'A single 0-100 score answering "can I trust this suite right now?", backed by pass/fail quality gates.',
+  },
+  {
+    src: '/screenshots/trends.png',
+    title: 'Trend charts',
+    description: 'Pass rate, duration and flakiness over time, so you can see a regression forming before it becomes a fire drill.',
+  },
+  {
+    src: '/screenshots/heatmap.png',
+    title: 'Module heatmap',
+    description: 'Pass rate by test folder x day, color-coded from red to green — spot exactly which part of the suite needs attention.',
+  },
+  {
+    src: '/screenshots/flaky-tests.png',
+    title: 'Flaky test detection',
+    description: 'Every flaky test surfaced automatically, with a trend arrow showing whether it is improving or getting worse.',
+  },
+  {
+    src: '/screenshots/performance-alerts.png',
+    title: 'Performance alerts',
+    description: "Get flagged the moment a test's duration jumps sharply, with current vs. previous duration side by side.",
+  },
+  {
+    src: '/screenshots/test-runs.png',
+    title: 'Test runs',
+    description: 'Every CI run grouped and broken down by pass/fail/skip counts and duration, newest first.',
+  },
+];
+
 const FEATURES = [
   {
     icon: BarChart3,
@@ -89,6 +122,27 @@ export default function Landing() {
               </div>
               <h3 className="mt-4 text-lg font-semibold">{feature.title}</h3>
               <p className="mt-2 text-sm text-neutral-600">{feature.description}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section>
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-3xl font-bold">See it in action</h2>
+          <p className="mt-3 text-neutral-600">
+            A real project dashboard, screenshotted straight from the app — this is what your team sees after every run.
+          </p>
+        </div>
+
+        <div className="mt-10 grid items-start gap-6 lg:grid-cols-2">
+          {SCREENSHOTS.map((shot) => (
+            <div key={shot.title} className="card overflow-hidden p-0">
+              <img src={shot.src} alt={shot.title} className="w-full border-b border-neutral-200" loading="lazy" />
+              <div className="p-5">
+                <h3 className="text-lg font-semibold">{shot.title}</h3>
+                <p className="mt-1 text-sm text-neutral-600">{shot.description}</p>
+              </div>
             </div>
           ))}
         </div>

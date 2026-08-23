@@ -20,9 +20,6 @@ export default function Header({ theme, onToggleTheme }: HeaderProps) {
   const profileRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
 
-  const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
-  const swaggerDocsUrl = `${apiBaseUrl.replace(/\/+$/, '').replace(/\/api$/, '')}/api/docs`;
-
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
       if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
@@ -71,22 +68,9 @@ export default function Header({ theme, onToggleTheme }: HeaderProps) {
           <Link to="/pricing" className="text-neutral-600 hover:text-neutral-900">
             Pricing
           </Link>
-          <a
-            href="https://github.com/vijayravindran90/Test-analytics/blob/main/docs/architecture.md"
-            target="_blank"
-            rel="noreferrer"
-            className="text-neutral-600 hover:text-neutral-900"
-          >
-            Docs
-          </a>
-          <a
-            href={swaggerDocsUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-neutral-600 hover:text-neutral-900"
-          >
-            API Docs
-          </a>
+          <Link to="/docs" className="text-neutral-600 hover:text-neutral-900">
+            Documentation
+          </Link>
           <button
             type="button"
             onClick={onToggleTheme}
