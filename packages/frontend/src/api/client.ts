@@ -34,6 +34,9 @@ apiClient.interceptors.response.use(
         window.location.hash = '#/login';
       }
     }
+    if (error.response?.status === 402 && window.location.hash !== '#/billing') {
+      window.location.hash = '#/billing';
+    }
     return Promise.reject(error);
   }
 );

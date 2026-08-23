@@ -43,3 +43,23 @@ export function formatDateShort(date: Date | string): string {
   const d = new Date(date);
   return d.toLocaleDateString();
 }
+
+export type StatusTier = 'good' | 'warning' | 'critical';
+
+export function getPassRateTier(passRate: number): StatusTier {
+  if (passRate >= 90) return 'good';
+  if (passRate >= 75) return 'warning';
+  return 'critical';
+}
+
+export const STATUS_TIER_META: Record<StatusTier, { label: string; textClass: string; badgeClass: string }> = {
+  good: { label: 'Healthy', textClass: 'text-success-700', badgeClass: 'badge-success' },
+  warning: { label: 'Needs attention', textClass: 'text-warning-700', badgeClass: 'badge-warning' },
+  critical: { label: 'At risk', textClass: 'text-danger-700', badgeClass: 'badge-danger' },
+};
+
+export function getConfidenceTier(score: number): StatusTier {
+  if (score >= 75) return 'good';
+  if (score >= 50) return 'warning';
+  return 'critical';
+}

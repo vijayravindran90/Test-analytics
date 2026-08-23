@@ -1,11 +1,15 @@
 import express, { Request, Response } from 'express';
 import { validate as validateUuid } from 'uuid';
+import { PLANS, PlanId, getPlanById } from 'test-analytics-shared';
 import testService from '../services/testService';
 import projectService from '../services/projectService';
 import pool from '../db';
 import userService from '../services/userService';
 import { signAuthToken, verifyAuthToken } from '../auth';
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth';
+import { isGoogleSignInConfigured, verifyGoogleIdToken } from '../services/googleAuth';
+import { createCheckoutSession, createPortalSession, isStripeConfigured } from '../services/billingService';
+import { sendVerificationEmail } from '../services/emailService';
 
 interface TestResult {
   id: string;
@@ -48,12 +52,42 @@ interface DashboardData {
 
 const router = express.Router();
 
+const TRIAL_EXPIRED_MESSAGE = 'Your free trial has ended. Upgrade your plan to keep using Test Analytics.';
+const EMAIL_NOT_VERIFIED_MESSAGE = 'Please verify your email address to continue.';
+
+function frontendUrl(): string {
+  return process.env.FRONTEND_URL || 'http://localhost:3000';
+}
+
+async function sendEmailVerification(userId: string, email: string): Promise<void> {
+  const token = await userService.generateEmailVerificationToken(userId);
+  const verifyUrl = `${frontendUrl()}/#/verify-email?token=${token}`;
+  await sendVerificationEmail(email, verifyUrl);
+}
+
+async function ensureActiveSubscription(userId: string, res: Response): Promise<boolean> {
+  const accessStatus = await userService.getAccessStatus(userId);
+  if (!accessStatus.allowed) {
+    if (accessStatus.reason === 'EMAIL_NOT_VERIFIED') {
+      res.status(403).json({ error: EMAIL_NOT_VERIFIED_MESSAGE, code: 'EMAIL_NOT_VERIFIED' });
+    } else {
+      res.status(402).json({ error: TRIAL_EXPIRED_MESSAGE, code: accessStatus.reason || 'TRIAL_EXPIRED' });
+    }
+    return false;
+  }
+  return true;
+}
+
 async function ensureProjectAccess(req: AuthenticatedRequest, res: Response): Promise<string | null> {
   const { projectId } = req.params;
   const userId = req.user?.id;
 
   if (!userId) {
     res.status(401).json({ error: 'Authentication required' });
+    return null;
+  }
+
+  if (!(await ensureActiveSubscription(userId, res))) {
     return null;
   }
 
@@ -81,6 +115,14 @@ router.post('/auth/register', async (req: Request, res: Response) => {
     const user = await userService.register(String(email), String(password), name ? String(name) : undefined);
     const token = signAuthToken({ userId: user.id, email: user.email });
 
+    try {
+      await sendEmailVerification(user.id, user.email);
+    } catch (emailError) {
+      // Don't fail registration if the verification email couldn't be sent - the
+      // user can request another one from the "resend verification" prompt.
+      console.error('Error sending verification email:', emailError);
+    }
+
     res.status(201).json({
       token,
       user,
@@ -92,6 +134,49 @@ router.post('/auth/register', async (req: Request, res: Response) => {
 
     console.error('Error registering user:', error);
     res.status(500).json({ error: 'Failed to register user' });
+  }
+});
+
+router.post('/auth/verify-email', async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ error: 'Verification token is required' });
+    }
+
+    const user = await userService.verifyEmailToken(String(token));
+    if (!user) {
+      return res.status(400).json({ error: 'This verification link is invalid or has expired.' });
+    }
+
+    const authToken = signAuthToken({ userId: user.id, email: user.email });
+    res.json({ token: authToken, user });
+  } catch (error) {
+    console.error('Error verifying email:', error);
+    res.status(500).json({ error: 'Failed to verify email' });
+  }
+});
+
+router.post('/auth/resend-verification', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const user = await userService.getUserById(req.user!.id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (user.emailVerified) {
+      return res.json({ success: true, alreadyVerified: true });
+    }
+
+    await sendEmailVerification(user.id, user.email);
+    res.json({ success: true });
+  } catch (error: any) {
+    if (error?.message?.includes('just sent')) {
+      return res.status(429).json({ error: error.message });
+    }
+
+    console.error('Error resending verification email:', error);
+    res.status(500).json({ error: 'Failed to resend verification email' });
   }
 });
 
@@ -115,6 +200,28 @@ router.post('/auth/login', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error logging in user:', error);
     res.status(500).json({ error: 'Failed to login' });
+  }
+});
+
+router.post('/auth/google', async (req: Request, res: Response) => {
+  try {
+    if (!isGoogleSignInConfigured()) {
+      return res.status(503).json({ error: 'Google sign-in is not configured on this server' });
+    }
+
+    const { idToken } = req.body;
+    if (!idToken) {
+      return res.status(400).json({ error: 'idToken is required' });
+    }
+
+    const profile = await verifyGoogleIdToken(String(idToken));
+    const user = await userService.findOrCreateGoogleUser(profile);
+    const token = signAuthToken({ userId: user.id, email: user.email });
+
+    res.json({ token, user });
+  } catch (error: any) {
+    console.error('Error authenticating with Google:', error);
+    res.status(401).json({ error: error?.message || 'Google sign-in failed' });
   }
 });
 
@@ -143,6 +250,78 @@ router.post('/auth/api-key', requireAuth, async (req: AuthenticatedRequest, res:
   }
 });
 
+// Public pricing plan catalog
+router.get('/billing/plans', async (req: Request, res: Response) => {
+  res.json({ plans: PLANS, billingEnabled: isStripeConfigured() });
+});
+
+router.get('/billing/subscription', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const profile = await userService.getBillingProfile(req.user!.id);
+    if (!profile) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const accessStatus = await userService.getAccessStatus(req.user!.id);
+
+    res.json({
+      plan: getPlanById(profile.plan),
+      subscriptionStatus: profile.subscriptionStatus,
+      currentPeriodEnd: profile.currentPeriodEnd,
+      hasBillingAccount: Boolean(profile.stripeCustomerId),
+      trialDaysLeft: accessStatus.trialDaysLeft,
+      accessAllowed: accessStatus.allowed,
+      emailVerified: accessStatus.emailVerified,
+    });
+  } catch (error) {
+    console.error('Error fetching subscription:', error);
+    res.status(500).json({ error: 'Failed to fetch subscription' });
+  }
+});
+
+router.post('/billing/checkout', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!isStripeConfigured()) {
+      return res.status(503).json({ error: 'Billing is not configured on this server' });
+    }
+
+    const { planId } = req.body;
+    const plan = PLANS.find((p) => p.id === planId);
+    if (!plan || !plan.priceIdEnvVar) {
+      return res.status(400).json({ error: 'Invalid plan selected' });
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const url = await createCheckoutSession(
+      req.user!.id,
+      req.user!.email,
+      plan.id as PlanId,
+      `${frontendUrl}/#/billing?checkout=success`,
+      `${frontendUrl}/#/pricing?checkout=canceled`
+    );
+
+    res.json({ url });
+  } catch (error: any) {
+    console.error('Error creating checkout session:', error);
+    res.status(500).json({ error: error?.message || 'Failed to start checkout' });
+  }
+});
+
+router.post('/billing/portal', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!isStripeConfigured()) {
+      return res.status(503).json({ error: 'Billing is not configured on this server' });
+    }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const url = await createPortalSession(req.user!.id, `${frontendUrl}/#/billing`);
+    res.json({ url });
+  } catch (error: any) {
+    console.error('Error creating billing portal session:', error);
+    res.status(400).json({ error: error?.message || 'Failed to open billing portal' });
+  }
+});
+
 // Save test results
 router.post('/tests/batch', async (req: Request, res: Response) => {
   try {
@@ -167,6 +346,14 @@ router.post('/tests/batch', async (req: Request, res: Response) => {
         }
         apiUser = { id: user.id, email: user.email };
       }
+    }
+
+    // An identified reporter (JWT or API key) is held to the same access rules as the
+    // rest of the app - an unverified email or an expired trial blocks ingestion too,
+    // not just viewing dashboards or clicking "New Project". Anonymous/unauthenticated
+    // submissions (no apiUser) are intentionally left ungated, unchanged from before.
+    if (apiUser && !(await ensureActiveSubscription(apiUser.id, res))) {
+      return;
     }
 
     // Ensure project exists
@@ -334,6 +521,87 @@ router.get('/projects/:projectId/performance-alerts', requireAuth, async (req: A
   } catch (error) {
     console.error('Error fetching performance alerts:', error);
     res.status(500).json({ error: 'Failed to fetch performance alerts' });
+  }
+});
+
+// Get confidence score
+router.get('/projects/:projectId/confidence-score', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
+    const { days = 30 } = req.query;
+
+    const confidenceScore = await testService.getConfidenceScore(projectId, parseInt(days as string));
+    res.json(confidenceScore);
+  } catch (error) {
+    console.error('Error fetching confidence score:', error);
+    res.status(500).json({ error: 'Failed to fetch confidence score' });
+  }
+});
+
+// Get guardrail status
+router.get('/projects/:projectId/guardrails', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
+    const { days = 30 } = req.query;
+
+    const project = await projectService.getProject(projectId, req.user!.id);
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    const guardrails = await testService.getGuardrails(
+      projectId,
+      {
+        minPassRate: project.guardrailMinPassRate,
+        maxFlakiness: project.guardrailMaxFlakiness,
+        maxAvgDurationMs: project.guardrailMaxAvgDurationMs,
+      },
+      parseInt(days as string)
+    );
+    res.json(guardrails);
+  } catch (error) {
+    console.error('Error fetching guardrails:', error);
+    res.status(500).json({ error: 'Failed to fetch guardrails' });
+  }
+});
+
+// Get module-wise metrics
+router.get('/projects/:projectId/module-metrics', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
+    const { days = 30 } = req.query;
+
+    const moduleMetrics = await testService.getModuleMetrics(projectId, parseInt(days as string));
+    res.json(moduleMetrics);
+  } catch (error) {
+    console.error('Error fetching module metrics:', error);
+    res.status(500).json({ error: 'Failed to fetch module metrics' });
+  }
+});
+
+// Get module x day pass-rate heatmap
+router.get('/projects/:projectId/heatmap', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
+    const { days = 14 } = req.query;
+
+    const heatmap = await testService.getModuleHeatmap(projectId, parseInt(days as string));
+    res.json(heatmap);
+  } catch (error) {
+    console.error('Error fetching module heatmap:', error);
+    res.status(500).json({ error: 'Failed to fetch module heatmap' });
   }
 });
 
@@ -559,6 +827,23 @@ router.post('/projects', requireAuth, async (req: AuthenticatedRequest, res: Res
 
     if (!name) {
       return res.status(400).json({ error: 'Project name is required' });
+    }
+
+    if (!(await ensureActiveSubscription(req.user!.id, res))) {
+      return;
+    }
+
+    const billingProfile = await userService.getBillingProfile(req.user!.id);
+    const plan = getPlanById(billingProfile?.plan);
+
+    if (plan.maxProjects !== null) {
+      const existingProjects = await projectService.getAllProjects(req.user!.id);
+      if (existingProjects.length >= plan.maxProjects) {
+        return res.status(403).json({
+          error: `Your ${plan.name} plan is limited to ${plan.maxProjects} project${plan.maxProjects === 1 ? '' : 's'}. Upgrade to add more.`,
+          code: 'PLAN_LIMIT_REACHED',
+        });
+      }
     }
 
     const project = await projectService.createProject(

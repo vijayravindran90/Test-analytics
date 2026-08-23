@@ -8,6 +8,9 @@ interface Project {
   owner?: string;
   slackWebhookUrl?: string;
   userId?: string | null;
+  guardrailMinPassRate: number;
+  guardrailMaxFlakiness: number;
+  guardrailMaxAvgDurationMs?: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -62,7 +65,15 @@ export class ProjectService {
 
   async updateProject(
     projectId: string,
-    updates: { name?: string; description?: string; owner?: string; slackWebhookUrl?: string | null },
+    updates: {
+      name?: string;
+      description?: string;
+      owner?: string;
+      slackWebhookUrl?: string | null;
+      guardrailMinPassRate?: number;
+      guardrailMaxFlakiness?: number;
+      guardrailMaxAvgDurationMs?: number | null;
+    },
     userId?: string
   ): Promise<Project> {
     const fieldMap: Record<string, string> = {
@@ -70,6 +81,9 @@ export class ProjectService {
       description: 'description',
       owner: 'owner',
       slackWebhookUrl: 'slack_webhook_url',
+      guardrailMinPassRate: 'guardrail_min_pass_rate',
+      guardrailMaxFlakiness: 'guardrail_max_flakiness',
+      guardrailMaxAvgDurationMs: 'guardrail_max_avg_duration_ms',
     };
 
     const fields = Object.keys(updates).filter(key => Object.keys(fieldMap).includes(key));
@@ -115,6 +129,9 @@ export class ProjectService {
       owner: row.owner,
       slackWebhookUrl: row.slack_webhook_url,
       userId: row.user_id,
+      guardrailMinPassRate: row.guardrail_min_pass_rate !== undefined ? parseFloat(row.guardrail_min_pass_rate) : 90,
+      guardrailMaxFlakiness: row.guardrail_max_flakiness !== undefined ? parseFloat(row.guardrail_max_flakiness) : 15,
+      guardrailMaxAvgDurationMs: row.guardrail_max_avg_duration_ms ?? null,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     };

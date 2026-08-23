@@ -5,6 +5,9 @@ interface AuthUser {
   id: string;
   email: string;
   name?: string;
+  avatarUrl?: string;
+  plan?: string;
+  emailVerified?: boolean;
 }
 
 interface AuthContextValue {
@@ -12,6 +15,8 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name?: string) => Promise<void>;
+  loginWithGoogle: (idToken: string) => Promise<void>;
+  verifyEmail: (verificationToken: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
 }
@@ -71,6 +76,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(response.data.user);
   };
 
+  const loginWithGoogle = async (idToken: string) => {
+    const response = await apiClient.post('/auth/google', { idToken });
+    setToken(response.data.token);
+    setUser(response.data.user);
+  };
+
+  const verifyEmail = async (verificationToken: string) => {
+    const response = await apiClient.post('/auth/verify-email', { token: verificationToken });
+    setToken(response.data.token);
+    setUser(response.data.user);
+  };
+
   const logout = () => {
     setToken(null);
     setUser(null);
@@ -82,6 +99,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       login,
       register,
+      loginWithGoogle,
+      verifyEmail,
       logout,
       isAuthenticated: Boolean(user),
     }),

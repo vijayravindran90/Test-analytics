@@ -1,10 +1,23 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Download, ChevronDown } from 'lucide-react';
-import { useDashboardData, useProject, useTestRuns, updateProject } from '../api/hooks';
+import {
+  useDashboardData,
+  useProject,
+  useTestRuns,
+  updateProject,
+  useConfidenceScore,
+  useGuardrails,
+  useModuleMetrics,
+  useModuleHeatmap,
+} from '../api/hooks';
 import MetricCard from '../components/MetricCard';
 import FlakyTestsList from '../components/FlakyTestsList';
 import PerformanceAlerts from '../components/PerformanceAlerts';
+import ConfidenceScoreCard from '../components/ConfidenceScoreCard';
+import GuardrailsPanel from '../components/GuardrailsPanel';
+import ModuleHeatmap from '../components/ModuleHeatmap';
+import ModuleMetricsTable from '../components/ModuleMetricsTable';
 import { TrendChart, DurationChart, MetricsOverviewChart } from '../components/Charts';
 import { TestRunsList } from '../components/TestRunsList';
 import { formatDuration, formatPercent } from '../utils/format';
@@ -31,6 +44,10 @@ export default function ProjectDetail() {
   const { project, loading: projectLoading } = useProject(projectId);
   const { data: dashboardData, loading: dataLoading, error } = useDashboardData(projectId, days);
   const { runs: testRuns, loading: runsLoading } = useTestRuns(projectId, 20);
+  const { score: confidenceScore, loading: confidenceLoading } = useConfidenceScore(projectId, days);
+  const { guardrails, loading: guardrailsLoading } = useGuardrails(projectId, days);
+  const { modules: moduleMetrics, loading: moduleMetricsLoading } = useModuleMetrics(projectId, days);
+  const { heatmap, loading: heatmapLoading } = useModuleHeatmap(projectId, 14);
 
   React.useEffect(() => {
     if (project?.slackWebhookUrl) {
@@ -651,6 +668,12 @@ export default function ProjectDetail() {
         </div>
       )}
 
+      {/* Confidence score & guardrails */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ConfidenceScoreCard confidence={confidenceScore} loading={confidenceLoading} />
+        <GuardrailsPanel guardrails={guardrails} loading={guardrailsLoading} />
+      </div>
+
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <MetricCard
@@ -728,6 +751,10 @@ export default function ProjectDetail() {
           </>
         )}
       </div>
+
+      {/* Module heatmap & folder metrics */}
+      <ModuleHeatmap heatmap={heatmap} loading={heatmapLoading} />
+      <ModuleMetricsTable modules={moduleMetrics} loading={moduleMetricsLoading} />
 
       {/* Flaky Tests */}
       <FlakyTestsList tests={flakyTests} />

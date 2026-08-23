@@ -70,6 +70,58 @@ interface TestMetrics {
   stability: number;
 }
 
+interface ConfidenceScore {
+  score: number;
+  label: 'Excellent' | 'Good' | 'Needs attention' | 'At risk';
+  breakdown: {
+    passRateScore: number;
+    stabilityScore: number;
+    recencyScore: number;
+  };
+  lastRunAt: Date | null;
+}
+
+interface GuardrailCheck {
+  key: string;
+  label: string;
+  status: 'pass' | 'fail';
+  actual: number;
+  threshold: number;
+  unit: '%' | 'ms';
+}
+
+interface GuardrailsResult {
+  overallStatus: 'pass' | 'fail';
+  checks: GuardrailCheck[];
+}
+
+interface ModuleMetric {
+  module: string;
+  totalTests: number;
+  passedTests: number;
+  failedTests: number;
+  passRate: number;
+  flakinessPercentage: number;
+  avgDuration: number;
+}
+
+interface ModuleHeatmapCell {
+  module: string;
+  date: string;
+  totalTests: number;
+  passedTests: number;
+  passRate: number;
+}
+
+function extractModule(testId: string): string {
+  const file = (testId || '').split('::')[0] || 'unknown';
+  const parts = file.split(/[\\/]/).filter(Boolean);
+  if (parts.length === 0) {
+    return 'root';
+  }
+  return parts.length >= 2 ? parts[parts.length - 2] : parts[0];
+}
+
 export class TestService {
   async saveTestResults(results: TestResult[]): Promise<void> {
     const client = await pool.connect();
@@ -502,6 +554,184 @@ export class TestService {
       failureRate: (failedTests / totalTests) * 100 || 0,
       stability: passRate, // Stability = pass rate (test reliability)
     };
+  }
+
+  async getConfidenceScore(projectId: string, days: number = 30): Promise<ConfidenceScore> {
+    const metrics = await this.getProjectMetrics(projectId, days);
+
+    const lastRunResult = await pool.query(
+      `SELECT MAX(created_at) as last_run_at FROM test_results WHERE project_id = $1`,
+      [projectId]
+    );
+    const lastRunAt: Date | null = lastRunResult.rows[0]?.last_run_at || null;
+
+    const passRateScore = metrics.totalTests > 0 ? metrics.passRate : 0;
+    const stabilityScore = metrics.totalTests > 0 ? Math.max(0, 100 - metrics.flakinessPercentage) : 0;
+
+    let recencyScore = 0;
+    if (lastRunAt) {
+      const hoursSinceLastRun = (Date.now() - new Date(lastRunAt).getTime()) / (1000 * 60 * 60);
+      const daysSinceLastRun = hoursSinceLastRun / 24;
+      recencyScore = Math.max(0, 100 - daysSinceLastRun * 15);
+    }
+
+    const score = Math.round(
+      Math.min(100, Math.max(0, 0.5 * passRateScore + 0.3 * stabilityScore + 0.2 * recencyScore))
+    );
+
+    const label: ConfidenceScore['label'] =
+      score >= 90 ? 'Excellent' : score >= 75 ? 'Good' : score >= 50 ? 'Needs attention' : 'At risk';
+
+    return {
+      score,
+      label,
+      breakdown: {
+        passRateScore: Math.round(passRateScore),
+        stabilityScore: Math.round(stabilityScore),
+        recencyScore: Math.round(recencyScore),
+      },
+      lastRunAt,
+    };
+  }
+
+  async getGuardrails(
+    projectId: string,
+    thresholds: { minPassRate: number; maxFlakiness: number; maxAvgDurationMs?: number | null },
+    days: number = 30
+  ): Promise<GuardrailsResult> {
+    const metrics = await this.getProjectMetrics(projectId, days);
+
+    const checks: GuardrailCheck[] = [
+      {
+        key: 'passRate',
+        label: 'Minimum pass rate',
+        status: metrics.passRate >= thresholds.minPassRate ? 'pass' : 'fail',
+        actual: Math.round(metrics.passRate * 100) / 100,
+        threshold: thresholds.minPassRate,
+        unit: '%',
+      },
+      {
+        key: 'flakiness',
+        label: 'Maximum flakiness',
+        status: metrics.flakinessPercentage <= thresholds.maxFlakiness ? 'pass' : 'fail',
+        actual: Math.round(metrics.flakinessPercentage * 100) / 100,
+        threshold: thresholds.maxFlakiness,
+        unit: '%',
+      },
+    ];
+
+    if (thresholds.maxAvgDurationMs) {
+      checks.push({
+        key: 'duration',
+        label: 'Maximum average duration',
+        status: metrics.avgDuration <= thresholds.maxAvgDurationMs ? 'pass' : 'fail',
+        actual: Math.round(metrics.avgDuration),
+        threshold: thresholds.maxAvgDurationMs,
+        unit: 'ms',
+      });
+    }
+
+    return {
+      overallStatus: checks.every((check) => check.status === 'pass') ? 'pass' : 'fail',
+      checks,
+    };
+  }
+
+  private async fetchModuleRows(
+    projectId: string,
+    days: number
+  ): Promise<{ module: string; status: string; duration: number; date: string; testId: string }[]> {
+    const result = await pool.query(
+      `SELECT test_id, status, duration, DATE(created_at) as date
+       FROM test_results
+       WHERE project_id = $1 AND created_at >= NOW() - INTERVAL '${days} days'`,
+      [projectId]
+    );
+
+    return result.rows.map((row: any) => ({
+      module: extractModule(row.test_id),
+      status: row.status,
+      duration: row.duration,
+      date: typeof row.date === 'string' ? row.date : new Date(row.date).toISOString().split('T')[0],
+      testId: row.test_id,
+    }));
+  }
+
+  async getModuleMetrics(projectId: string, days: number = 30): Promise<ModuleMetric[]> {
+    const [rows, flakyResult] = await Promise.all([
+      this.fetchModuleRows(projectId, days),
+      pool.query(`SELECT test_id FROM flaky_tests WHERE project_id = $1 AND flakiness_percentage > 0`, [projectId]),
+    ]);
+
+    const flakyTestIds = new Set<string>(flakyResult.rows.map((row: any) => row.test_id));
+
+    const byModule = new Map<
+      string,
+      { totalTests: number; passedTests: number; failedTests: number; totalDuration: number; flakyIds: Set<string> }
+    >();
+
+    for (const row of rows) {
+      if (!byModule.has(row.module)) {
+        byModule.set(row.module, { totalTests: 0, passedTests: 0, failedTests: 0, totalDuration: 0, flakyIds: new Set() });
+      }
+      const bucket = byModule.get(row.module)!;
+      bucket.totalTests += 1;
+      if (row.status === 'PASSED') bucket.passedTests += 1;
+      if (row.status === 'FAILED' || row.status === 'TIMEOUT') bucket.failedTests += 1;
+      bucket.totalDuration += row.duration;
+      if (flakyTestIds.has(row.testId)) bucket.flakyIds.add(row.testId);
+    }
+
+    return Array.from(byModule.entries())
+      .map(([module, bucket]) => ({
+        module,
+        totalTests: bucket.totalTests,
+        passedTests: bucket.passedTests,
+        failedTests: bucket.failedTests,
+        passRate: bucket.totalTests > 0 ? (bucket.passedTests / bucket.totalTests) * 100 : 0,
+        flakinessPercentage: bucket.totalTests > 0 ? (bucket.flakyIds.size / bucket.totalTests) * 100 : 0,
+        avgDuration: bucket.totalTests > 0 ? bucket.totalDuration / bucket.totalTests : 0,
+      }))
+      .sort((a, b) => b.totalTests - a.totalTests);
+  }
+
+  async getModuleHeatmap(projectId: string, days: number = 14): Promise<{ modules: string[]; dates: string[]; cells: ModuleHeatmapCell[] }> {
+    const rows = await this.fetchModuleRows(projectId, days);
+
+    const byCell = new Map<string, { module: string; date: string; totalTests: number; passedTests: number }>();
+    const moduleTotals = new Map<string, number>();
+
+    for (const row of rows) {
+      const key = `${row.module}::${row.date}`;
+      if (!byCell.has(key)) {
+        byCell.set(key, { module: row.module, date: row.date, totalTests: 0, passedTests: 0 });
+      }
+      const cell = byCell.get(key)!;
+      cell.totalTests += 1;
+      if (row.status === 'PASSED') cell.passedTests += 1;
+      moduleTotals.set(row.module, (moduleTotals.get(row.module) || 0) + 1);
+    }
+
+    const modules = Array.from(moduleTotals.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([module]) => module);
+
+    const dates: string[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      dates.push(d.toISOString().split('T')[0]);
+    }
+
+    const cells: ModuleHeatmapCell[] = Array.from(byCell.values()).map((cell) => ({
+      module: cell.module,
+      date: cell.date,
+      totalTests: cell.totalTests,
+      passedTests: cell.passedTests,
+      passRate: cell.totalTests > 0 ? (cell.passedTests / cell.totalTests) * 100 : 0,
+    }));
+
+    return { modules, dates, cells };
   }
 
   async getFlakyTests(projectId: string, limit: number = 10): Promise<FlakyTest[]> {

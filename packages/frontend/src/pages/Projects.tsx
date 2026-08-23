@@ -1,18 +1,16 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { useProjects } from '../api/hooks';
 import apiClient from '../api/client';
 
 export default function Projects() {
   const { projects, loading, error } = useProjects();
+  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({ name: '', description: '' });
   const [creating, setCreating] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  // Debug logging
-  console.log('Projects component:', { projects, loading, error, projectsLength: projects?.length });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,11 +18,17 @@ export default function Projects() {
     setSubmitError(null);
 
     try {
+      const isFirstProject = projects.length === 0;
       await apiClient.post('/projects', formData);
       setFormData({ name: '', description: '' });
       setShowForm(false);
-      // Reload projects
-      window.location.reload();
+
+      if (isFirstProject) {
+        // Guide brand-new users straight to reporter setup so they see their first results.
+        navigate('/integration');
+      } else {
+        window.location.reload();
+      }
     } catch (err: any) {
       setSubmitError(err?.response?.data?.error || err.message || 'Failed to create project');
     } finally {
@@ -95,6 +99,14 @@ export default function Projects() {
           {submitError && (
             <div className="p-3 bg-danger-50 border border-danger-200 text-danger-700 rounded-lg">
               {submitError}
+              {submitError.toLowerCase().includes('plan') && (
+                <>
+                  {' '}
+                  <Link to="/billing" className="font-semibold underline">
+                    View plans
+                  </Link>
+                </>
+              )}
             </div>
           )}
           <div className="flex gap-2">

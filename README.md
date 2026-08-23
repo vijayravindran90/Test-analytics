@@ -5,10 +5,26 @@ A comprehensive test reporting and analytics dashboard for Playwright tests, sim
 ## Key Features
 
 ### 🔐 User Authentication & Multi-Tenant Support (NEW in v1.1.0)
-- **User Registration & Login**: Create secure accounts with email and password
+- **Sign in with Google or email/password**: Both are shown on `/login` — "Continue with Google" plus a standard email/password sign in and registration form.
+- **Email verification required**: Whichever method is used, an account must have a verified email before it can create projects or view dashboards. Google accounts are verified automatically (Google itself asserts `email_verified`); email/password accounts get a verification link sent to their inbox and are gated until they click it.
+- **Pricing-first signup**: `/login` requires a `?plan=` value; visiting it directly (or via the header's "Get Started" button) redirects to `/pricing` first, so signing in always starts from plan selection.
 - **JWT-Based Authentication**: Secure stateless authentication with 7-day token expiry
 - **Project Isolation**: Each user's projects and test data are completely isolated
 - **Per-User Project Namespacing**: Same project name can exist across different user profiles
+
+> **Deployment note**: Google sign-in requires `GOOGLE_CLIENT_ID` / `VITE_GOOGLE_CLIENT_ID` to be configured (see below) to show up as an option — email/password works without any extra setup. Without SMTP credentials configured, verification emails are logged to the backend console instead of actually sent (see below) — fine for local testing, not for real users.
+
+### 💳 Public Landing Page, Pricing & Free Trial
+- **Marketing Home Page**: Public landing page with product overview and feature highlights for visitors who aren't signed in
+- **Pricing Plans**: Free (14-day trial) / Pro / Team tiers with per-plan project limits, shown on `/pricing` and reused on the in-app billing page
+- **14-Day Free Trial**: The Free plan is time-limited (`FREE_TRIAL_DAYS` in `packages/shared/src/plans.ts`). A banner shows days remaining; once it expires, project dashboards and project creation are blocked (HTTP 402) until the user upgrades. A canceled/lapsed paid subscription reverts to the Free plan and is subject to the same trial gate.
+- **Stripe Billing**: Checkout, customer portal and subscription webhooks for upgrading/downgrading plans (optional, see setup below)
+
+### 🧠 Advanced Analytics (NEW)
+- **Confidence Score**: A single 0-100 score per project, weighted from pass rate (50%), stability (30%) and how recently tests ran (20%)
+- **Guardrails**: Configurable quality gates (minimum pass rate, maximum flakiness, optional max average duration) shown as pass/fail chips on the dashboard
+- **Module Heatmap**: Pass rate by test folder x day, derived automatically from each test's file path — no reporter changes needed
+- **Test Folder Metrics**: Pass rate, flakiness and average duration rolled up per test folder/module
 
 ### 📊 Test Analytics
 - **Test Metrics Dashboard**: Real-time metrics including pass rate, failure rate, flakiness percentage, and stability score
@@ -97,7 +113,51 @@ ADMIN_KEY=optional-admin-api-key
 **packages/frontend/.env** (optional):
 ```ini
 VITE_API_URL=http://localhost:3001/api
+VITE_GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
 ```
+
+### Optional: Set Up Google Sign-In
+
+1. Create an OAuth Client ID (type "Web application") at [Google Cloud Console → Credentials](https://console.cloud.google.com/apis/credentials).
+2. Add your frontend origin(s) (e.g. `http://localhost:3000`, `https://www.your-domain.com`) to **Authorized JavaScript origins**.
+3. Set the same client ID in both places:
+   - `packages/backend/.env` → `GOOGLE_CLIENT_ID`
+   - `packages/frontend/.env` → `VITE_GOOGLE_CLIENT_ID`
+4. Restart both servers. A "Continue with Google" button will appear on the login page automatically; it stays hidden until the client ID is configured.
+
+Google users are matched to an existing account by email if one already exists, otherwise a new account is created automatically. Signing in with Google always marks the account's email as verified, since Google has already confirmed it.
+
+### Optional: Set Up Email Verification (SMTP)
+
+Every account — Google or email/password — must have a verified email before it can create projects or view dashboards. Google accounts are verified automatically; email/password accounts need an actual email sent.
+
+1. Get SMTP credentials from any provider (e.g. SendGrid, Postmark, Amazon SES, or even a Gmail app password for testing).
+2. Add to `packages/backend/.env`:
+   ```ini
+   SMTP_HOST=smtp.your-provider.com
+   SMTP_PORT=587
+   SMTP_USER=your-smtp-username
+   SMTP_PASS=your-smtp-password
+   EMAIL_FROM=Test Analytics <no-reply@your-domain.com>
+   ```
+3. Restart the backend. New registrations will now receive a real verification email instead of having the link logged to the server console.
+
+Without SMTP configured, verification links are printed to the backend's console log (`[email] SMTP not configured — verification link for ...`) so you can still test the flow locally by copying the link from the logs.
+
+### Optional: Set Up Stripe Billing
+
+1. Create a [Stripe](https://dashboard.stripe.com) account and create two recurring Prices (one for Pro, one for Team) matching the amounts in `packages/shared/src/plans.ts`.
+2. Add to `packages/backend/.env`:
+   ```ini
+   STRIPE_SECRET_KEY=sk_test_...
+   STRIPE_PRICE_ID_PRO=price_...
+   STRIPE_PRICE_ID_TEAM=price_...
+   STRIPE_WEBHOOK_SECRET=whsec_...
+   ```
+3. Point a Stripe webhook at `POST {your-backend-url}/api/billing/webhook`, subscribed to `checkout.session.completed`, `customer.subscription.updated` and `customer.subscription.deleted`. Use the Stripe CLI (`stripe listen --forward-to localhost:3001/api/billing/webhook`) for local testing.
+4. Once configured, the pricing page and the in-app **Billing** page (from the profile menu) let users start a Stripe Checkout session and manage their subscription through the Stripe customer portal. Without these variables set, the pricing page still renders but checkout returns a friendly "billing is not configured" error.
+
+Plan limits (e.g. max projects per plan) are enforced in the backend when a plan's project cap is defined; retention-day limits shown on the pricing page are informational only and are not yet automatically enforced.
 
 ### 5. Start the Backend Server
 
@@ -124,10 +184,10 @@ Starting with v1.1.0, the dashboard requires user authentication. All test data 
 ### 1. Create Your Account
 
 1. Open the dashboard at `http://localhost:3000`
-2. Click **"Login"** in the top right
-3. Click **"Create Account"** to register
-4. Enter your email and password
-5. Click **"Sign Up"**
+2. Click **"Get Started"** in the top right — this takes you to `/pricing` first
+3. Choose a plan (Free starts a 14-day trial; Pro/Team go to Stripe Checkout after sign-in)
+4. Sign in either with **"Continue with Google"**, or register with your email and password
+5. If you registered with email/password, check your inbox for a verification link — you won't be able to create projects or view dashboards until you click it (Google sign-in skips this step, since Google already verified your email)
 
 ### 2. Create a Project
 
@@ -213,6 +273,35 @@ curl -H "Authorization: Bearer YOUR_JWT_TOKEN" http://localhost:3001/api/project
   - Requires: Bearer token
   - Returns: `{ user: { id, email, name } }`
 
+- `POST /api/auth/google` - Sign in (or register) with a Google ID token
+  - Body: `{ idToken }` (from Google Identity Services on the frontend)
+  - Returns: `{ token, user: { id, email, name } }` — `emailVerified` is always `true` for Google accounts
+
+- `POST /api/auth/verify-email` - Verify an email/password account using the token from its verification email
+  - Body: `{ token }`
+  - Returns: `{ token, user }` (logs the user in immediately on success)
+
+- `POST /api/auth/resend-verification` - Resend the verification email for the current account
+  - Requires: Bearer token
+  - Rate-limited to one send per minute; returns `429` if called again too soon
+
+### Billing
+
+- `GET /api/billing/plans` - Public pricing plan catalog (no auth required)
+- `GET /api/billing/subscription` - Current user's plan, subscription status, and trial info (`trialDaysLeft`, `accessAllowed`) (requires auth)
+- `POST /api/billing/checkout` - Create a Stripe Checkout session for a paid plan
+  - Body: `{ planId }` (`pro` or `team`)
+  - Returns: `{ url }` to redirect the browser to
+- `POST /api/billing/portal` - Create a Stripe customer portal session for the current user
+  - Returns: `{ url }` to redirect the browser to
+- `POST /api/billing/webhook` - Stripe webhook receiver (called by Stripe, not the frontend)
+
+All project-data endpoints (dashboard, metrics, module heatmap, etc.), `POST /api/projects`, and `POST /api/tests/batch` (the Playwright reporter's ingestion endpoint, whenever it's called with a Bearer token or API key identifying a user) are gated by the same access check:
+- `403 { error, code: 'EMAIL_NOT_VERIFIED' }` if the account's email isn't verified yet (checked before the trial, regardless of plan)
+- `402 { error, code: 'TRIAL_EXPIRED' }` once a Free-plan user's trial has ended
+
+Unauthenticated/anonymous `POST /api/tests/batch` submissions (no token at all) are intentionally left ungated, unchanged from before. The frontend's axios client redirects to `/billing` automatically on a 402; a 403 with that code surfaces the persistent "verify your email" banner instead.
+
 ### Projects
 
 All project endpoints require authentication.
@@ -235,6 +324,15 @@ All project endpoints require authentication.
 - `GET /api/projects/:projectId/flaky-tests` - Get list of flaky tests
 - `GET /api/projects/:projectId/performance-alerts` - Get performance alerts
 - `GET /api/projects/:projectId/trends` - Get metrics trends over time
+
+### Advanced Analytics (NEW)
+
+- `GET /api/projects/:projectId/confidence-score` - Weighted 0-100 confidence score with a pass-rate/stability/recency breakdown
+- `GET /api/projects/:projectId/guardrails` - Pass/fail status against each project's quality gate thresholds
+- `GET /api/projects/:projectId/module-metrics` - Pass rate, flakiness and duration grouped by test folder
+- `GET /api/projects/:projectId/heatmap` - Module x day pass-rate matrix for the heatmap widget
+
+Guardrail thresholds (`guardrailMinPassRate`, `guardrailMaxFlakiness`, `guardrailMaxAvgDurationMs`) can be changed via `PUT /api/projects/:projectId`, the same endpoint used for other project settings.
 
 ### Browser Analytics (NEW)
 
