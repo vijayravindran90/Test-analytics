@@ -135,10 +135,12 @@ export default function Landing() {
           </p>
         </div>
 
-        <div className="mt-10 grid items-start gap-6 lg:grid-cols-2">
+        <div className="mt-10 grid gap-6 lg:grid-cols-2">
           {SCREENSHOTS.map((shot) => (
-            <div key={shot.title} className="card overflow-hidden p-0">
-              <img src={shot.src} alt={shot.title} className="w-full border-b border-neutral-200" loading="lazy" />
+            <div key={shot.title} className="card flex flex-col overflow-hidden p-0">
+              <div className="h-56 overflow-hidden border-b border-neutral-200 bg-white">
+                <img src={shot.src} alt={shot.title} className="h-full w-full object-cover object-top" loading="lazy" />
+              </div>
               <div className="p-5">
                 <h3 className="text-lg font-semibold">{shot.title}</h3>
                 <p className="mt-1 text-sm text-neutral-600">{shot.description}</p>
