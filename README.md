@@ -144,6 +144,19 @@ Every account — Google or email/password — must have a verified email before
 
 Without SMTP configured, verification links are printed to the backend's console log (`[email] SMTP not configured — verification link for ...`) so you can still test the flow locally by copying the link from the logs.
 
+### Optional: Create a Test Account
+
+For exploring the app (or letting someone else try it) without going through Google/SMTP/Stripe setup, seed a permanent test account: pre-verified, on the Pro plan, never trial-limited.
+
+```bash
+cd packages/backend
+npm run seed:test-account            # local dev, ts-node
+# or, against a deployed database:
+DATABASE_URL=<production-connection-string> npm run seed:test-account:prod   # after `npm run build`
+```
+
+It prints the generated email/password once — save them, they aren't recoverable afterward (only a bcrypt hash is stored). Defaults to `tester@test-analytics.in` with a random password; override with `TEST_ACCOUNT_EMAIL` / `TEST_ACCOUNT_PASSWORD` env vars. Re-running it is safe (idempotent) — it just refreshes the plan/verification bypass and leaves the existing password alone, unless you also set `TEST_ACCOUNT_RESET_PASSWORD=<new-password>`.
+
 ### Optional: Set Up Stripe Billing
 
 1. Create a [Stripe](https://dashboard.stripe.com) account and, on the Pro product, create **two** recurring Prices matching `packages/shared/src/plans.ts`: $12/month billed monthly, and $10/month ($120/year) billed annually. Team is marked "Coming soon" in the UI and isn't purchasable yet, so its Prices aren't required until it launches.
