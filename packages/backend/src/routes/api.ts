@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import multer from 'multer';
 import { validate as validateUuid } from 'uuid';
 import { PLANS, PlanId, BillingInterval, getPlanById } from 'test-analytics-shared';
 import testService from '../services/testService';
@@ -9,7 +10,7 @@ import { signAuthToken, verifyAuthToken } from '../auth';
 import { AuthenticatedRequest, requireAuth } from '../middleware/auth';
 import { isGoogleSignInConfigured, verifyGoogleIdToken } from '../services/googleAuth';
 import { createSubscriptionCheckout, cancelSubscription, isBillingConfigured } from '../services/billingService';
-import { sendVerificationEmail } from '../services/emailService';
+import { sendVerificationEmail, sendContactFormEmail } from '../services/emailService';
 import { seedTestAccount, DEFAULT_TEST_ACCOUNT_EMAIL } from '../services/testAccountService';
 import { seedDemoProject } from '../services/demoDataService';
 
@@ -249,6 +250,60 @@ router.post('/auth/api-key', requireAuth, async (req: AuthenticatedRequest, res:
   } catch (error) {
     console.error('Error generating API key:', error);
     res.status(500).json({ error: 'Failed to generate API key' });
+  }
+});
+
+// Contact form - public, unauthenticated. Sends the submission straight to the
+// owner's inbox rather than storing it, since there's no support-ticket system yet.
+const CONTACT_MAX_FILE_BYTES = 10 * 1024 * 1024; // 10MB
+const contactUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: CONTACT_MAX_FILE_BYTES },
+});
+
+// Simple in-memory per-IP cooldown to deter spamming the owner's inbox. Not
+// distributed-safe, but this runs as a single backend instance.
+const CONTACT_COOLDOWN_MS = 60 * 1000;
+const contactLastSubmitByIp = new Map<string, number>();
+
+router.post('/contact', contactUpload.single('attachment'), async (req: Request, res: Response) => {
+  try {
+    const ip = req.ip || 'unknown';
+    const lastSubmit = contactLastSubmitByIp.get(ip);
+    if (lastSubmit && Date.now() - lastSubmit < CONTACT_COOLDOWN_MS) {
+      return res.status(429).json({ error: 'Please wait a moment before sending another message.' });
+    }
+
+    const { email, subject, description } = req.body;
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!email || !emailPattern.test(email)) {
+      return res.status(400).json({ error: 'A valid email address is required' });
+    }
+    if (!subject || !subject.trim()) {
+      return res.status(400).json({ error: 'Subject is required' });
+    }
+    if (!description || !description.trim()) {
+      return res.status(400).json({ error: 'Description is required' });
+    }
+
+    await sendContactFormEmail({
+      fromEmail: email,
+      subject: subject.trim().slice(0, 200),
+      description: description.trim().slice(0, 5000),
+      attachment: req.file
+        ? { filename: req.file.originalname, content: req.file.buffer, contentType: req.file.mimetype }
+        : undefined,
+    });
+
+    contactLastSubmitByIp.set(ip, Date.now());
+    res.json({ success: true });
+  } catch (error: any) {
+    if (error?.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'Attachment is too large (max 10MB)' });
+    }
+    console.error('Error sending contact form submission:', error);
+    res.status(500).json({ error: 'Failed to send your message. Please try again.' });
   }
 });
 
