@@ -48,10 +48,7 @@ export const PLANS: PlanDefinition[] = [
     id: 'pro',
     name: 'Pro',
     tagline: 'For teams shipping fast with CI',
-    // TEMPORARY: live-mode pricing test at Rs100 instead of the real Rs999 -
-    // revert this line (and swap RAZORPAY_PLAN_ID_PRO_MONTHLY back to the
-    // real plan) once the live payment flow is confirmed working end-to-end.
-    priceMonthly: 100,
+    priceMonthly: 999,
     priceAnnualMonthly: 833,
     planIdEnvVar: 'RAZORPAY_PLAN_ID_PRO_MONTHLY',
     planIdEnvVarAnnual: 'RAZORPAY_PLAN_ID_PRO_ANNUAL',
