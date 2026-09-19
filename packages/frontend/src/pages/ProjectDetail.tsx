@@ -757,7 +757,7 @@ export default function ProjectDetail() {
       <ModuleMetricsTable modules={moduleMetrics} loading={moduleMetricsLoading} />
 
       {/* Flaky Tests */}
-      <FlakyTestsList tests={flakyTests} />
+      <FlakyTestsList tests={flakyTests} projectId={projectId} />
 
       {/* Performance Alerts */}
       <PerformanceAlerts alerts={performanceAlerts} />

@@ -1,14 +1,18 @@
-import React from 'react';
-import { AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
+import React, { useState } from 'react';
+import { AlertTriangle, Sparkles, TrendingUp, TrendingDown } from 'lucide-react';
 import type { FlakyTest } from 'test-analytics-shared';
 import { formatPercent } from '../utils/format';
+import TestInvestigationModal from './TestInvestigationModal';
 
 interface FlakyTestsListProps {
   tests: FlakyTest[];
   loading?: boolean;
+  projectId?: string;
 }
 
-export default function FlakyTestsList({ tests, loading }: FlakyTestsListProps) {
+export default function FlakyTestsList({ tests, loading, projectId }: FlakyTestsListProps) {
+  const [investigating, setInvestigating] = useState<FlakyTest | null>(null);
+
   if (loading) {
     return <div className="card p-6">Loading flaky tests...</div>;
   }
@@ -39,6 +43,7 @@ export default function FlakyTestsList({ tests, loading }: FlakyTestsListProps) 
               <th className="px-6 py-3 text-left text-sm font-medium text-neutral-600">Passes</th>
               <th className="px-6 py-3 text-left text-sm font-medium text-neutral-600">Failures</th>
               <th className="px-6 py-3 text-left text-sm font-medium text-neutral-600">Trend</th>
+              {projectId && <th className="px-6 py-3 text-left text-sm font-medium text-neutral-600"></th>}
             </tr>
           </thead>
           <tbody>
@@ -79,11 +84,32 @@ export default function FlakyTestsList({ tests, loading }: FlakyTestsListProps) 
                     )}
                   </div>
                 </td>
+                {projectId && (
+                  <td className="px-6 py-3 text-sm">
+                    <button
+                      type="button"
+                      onClick={() => setInvestigating(test)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-primary-200 px-2.5 py-1 text-xs font-medium text-primary-700 hover:bg-primary-50"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Investigate
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {investigating && projectId && (
+        <TestInvestigationModal
+          projectId={projectId}
+          testId={investigating.testId}
+          testName={investigating.testName}
+          onClose={() => setInvestigating(null)}
+        />
+      )}
     </div>
   );
 }

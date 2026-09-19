@@ -58,6 +58,7 @@ export const PLANS: PlanDefinition[] = [
       'Up to 10 projects',
       '90-day test history',
       'Flaky test detection & alerts',
+      'AI test failure investigation',
       'Slack notifications',
       'Email support',
     ],

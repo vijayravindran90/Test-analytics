@@ -13,6 +13,7 @@ import { createSubscriptionCheckout, cancelSubscription, isBillingConfigured } f
 import { sendVerificationEmail, sendContactFormEmail } from '../services/emailService';
 import { seedTestAccount, DEFAULT_TEST_ACCOUNT_EMAIL } from '../services/testAccountService';
 import { seedDemoProject } from '../services/demoDataService';
+import { isInvestigationConfigured, getCachedInvestigation, investigateTest } from '../services/investigationService';
 
 interface TestResult {
   id: string;
@@ -555,6 +556,45 @@ router.get('/projects/:projectId/flaky-tests', requireAuth, async (req: Authenti
   } catch (error) {
     console.error('Error fetching flaky tests:', error);
     res.status(500).json({ error: 'Failed to fetch flaky tests' });
+  }
+});
+
+// AI investigation of a specific failing/flaky test - Pro plan only, since each
+// generation calls the Anthropic API. Returns a cached investigation instantly
+// if one exists; pass forceRefresh to regenerate it.
+router.post('/projects/:projectId/tests/investigate', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const projectId = await ensureProjectAccess(req, res);
+    if (!projectId) {
+      return;
+    }
+
+    const accessStatus = await userService.getAccessStatus(req.user!.id);
+    if (accessStatus.plan !== 'pro' && accessStatus.plan !== 'team') {
+      return res.status(403).json({ error: 'AI investigation is a Pro plan feature', code: 'PRO_REQUIRED' });
+    }
+
+    if (!isInvestigationConfigured()) {
+      return res.status(503).json({ error: 'AI investigation is not configured on this server' });
+    }
+
+    const { testId, testName, forceRefresh } = req.body;
+    if (!testId || typeof testId !== 'string') {
+      return res.status(400).json({ error: 'testId is required' });
+    }
+
+    if (!forceRefresh) {
+      const cached = await getCachedInvestigation(projectId, testId);
+      if (cached) {
+        return res.json({ ...cached, cached: true });
+      }
+    }
+
+    const investigation = await investigateTest(projectId, testId, testName || testId);
+    res.json({ ...investigation, cached: false });
+  } catch (error: any) {
+    console.error('Error running AI investigation:', error);
+    res.status(500).json({ error: error?.message || 'Failed to investigate this test' });
   }
 });
 

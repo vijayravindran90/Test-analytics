@@ -16,7 +16,7 @@ A comprehensive test reporting and analytics dashboard for Playwright tests, sim
 
 ### 💳 Public Landing Page, Pricing & Free Trial
 - **Marketing Home Page**: Public landing page with product overview and feature highlights for visitors who aren't signed in
-- **Pricing Plans**: Free (14-day trial) / Pro ($12/mo billed monthly, $10/mo billed annually) tiers with per-plan project limits, shown on `/pricing` and reused on the in-app billing page. Team is shown with a "Coming soon" badge and isn't purchasable yet.
+- **Pricing Plans**: Free (14-day trial) / Pro (₹999/mo billed monthly, ₹833/mo billed annually) tiers with per-plan project limits, shown on `/pricing` and reused on the in-app billing page. Team is shown with a "Coming soon" badge and isn't purchasable yet.
 - **14-Day Free Trial**: The Free plan is time-limited (`FREE_TRIAL_DAYS` in `packages/shared/src/plans.ts`). A banner shows days remaining; once it expires, project dashboards and project creation are blocked (HTTP 402) until the user upgrades. A canceled/lapsed paid subscription reverts to the Free plan and is subject to the same trial gate.
 - **Razorpay Billing**: Subscription checkout and webhooks for upgrading/downgrading plans, priced in INR (optional, see setup below)
 
@@ -25,6 +25,7 @@ A comprehensive test reporting and analytics dashboard for Playwright tests, sim
 - **Guardrails**: Configurable quality gates (minimum pass rate, maximum flakiness, optional max average duration) shown as pass/fail chips on the dashboard
 - **Module Heatmap**: Pass rate by test folder x day, derived automatically from each test's file path — no reporter changes needed
 - **Test Folder Metrics**: Pass rate, flakiness and average duration rolled up per test folder/module
+- **AI Test Investigation** (Pro): One click on a flaky test generates a root cause analysis, short-term fix, long-term fix, and best-effort code-location hint via the Anthropic API (optional, see setup below)
 
 ### 📊 Test Analytics
 - **Test Metrics Dashboard**: Real-time metrics including pass rate, failure rate, flakiness percentage, and stability score
@@ -198,6 +199,19 @@ Billing is powered by [Razorpay](https://dashboard.razorpay.com) Subscriptions, 
 4. Once configured, the pricing page and the in-app **Billing** page (from the profile menu) let users toggle monthly/annual billing and start a Razorpay subscription checkout; from the Billing page they can cancel an active subscription (effective at the end of the current billing period). Without these variables set, the pricing page still renders but checkout returns a friendly "billing is not configured" error.
 
 Unlike Stripe, Razorpay doesn't provide a hosted self-service portal for updating a saved card or invoices — that gap is covered by canceling and re-subscribing, or by adding a support contact for account changes.
+
+### Optional: Set Up AI Test Investigation
+
+Pro-plan users can click **Investigate** on any flaky test to get an AI-generated root cause analysis, a short-term fix, a long-term fix, and a best-effort pointer to where in the code to look — powered by the [Anthropic API](https://console.anthropic.com). This costs real money per investigation (usage-based), so it's gated to the Pro plan and results are cached per test until the user clicks "Re-investigate."
+
+1. Create an API key at [console.anthropic.com](https://console.anthropic.com) (Settings → API keys)
+2. Add to `packages/backend/.env`:
+   ```ini
+   ANTHROPIC_API_KEY=sk-ant-...
+   ```
+3. That's it — no webhook or extra setup needed. Without this variable set, clicking Investigate returns a friendly "AI investigation is not configured" error instead of failing silently.
+
+Since this only has access to the test's file path/title and the error messages Playwright already captured (not your actual application or test source code), treat the code-location guidance as an informed inference, not a guaranteed pinpoint.
 
 Plan limits (e.g. max projects per plan) are enforced in the backend when a plan's project cap is defined; retention-day limits shown on the pricing page are informational only and are not yet automatically enforced.
 
@@ -377,6 +391,10 @@ All project endpoints require authentication.
 - `GET /api/projects/:projectId/flaky-tests` - Get list of flaky tests
 - `GET /api/projects/:projectId/performance-alerts` - Get performance alerts
 - `GET /api/projects/:projectId/trends` - Get metrics trends over time
+- `POST /api/projects/:projectId/tests/investigate` - AI root cause analysis for a flaky/failing test (Pro plan only)
+  - Body: `{ testId, testName, forceRefresh? }` - returns a cached result instantly unless `forceRefresh` is true
+  - Returns: `{ rootCauseAnalysis, shortTermFix, longTermFix, codeLocation, suggestedSolution, cached, updatedAt }`
+  - `403 { code: 'PRO_REQUIRED' }` if the account isn't on Pro/Team; `503` if `ANTHROPIC_API_KEY` isn't configured
 
 ### Advanced Analytics (NEW)
 
