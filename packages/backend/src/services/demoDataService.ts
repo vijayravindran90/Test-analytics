@@ -29,6 +29,60 @@ const REGRESSION_DAYS = 2;
 
 export const DEFAULT_DEMO_PROJECT_NAME = 'ShopWave E2E Suite';
 
+// One specific, reliably-reproducing failure - not random flakiness - so
+// there's always a clean "investigate this" demo case: today's chromium run
+// of this exact test always fails, with a rich, realistic Playwright error
+// (a duplicate data-testid resolving to a disabled button) that gives the AI
+// investigation feature real evidence to work with, including an explicit
+// file:line the model can cite directly rather than merely infer.
+const HERO_FAILURE_TEST_ID = 'tests/checkout/payment.spec.ts::should apply a discount code before payment';
+const HERO_FAILURE_ERROR = `TimeoutError: locator.click: Timeout 30000ms exceeded.
+=========================== logs ===========================
+waiting for locator('[data-testid="apply-discount-code"]')
+  locator resolved to 2 elements. Proceeding with first one: <button data-testid="apply-discount-code" disabled></button>
+  element is not enabled - retrying click action
+  waiting 500ms before next attempt
+============================================================
+
+    at tests/checkout/payment.spec.ts:47:63
+
+    45 |   await page.fill('[data-testid="discount-code"]', 'SAVE20');
+    46 |   await expect(page.locator('[data-testid="discount-code"]')).toHaveValue('SAVE20');
+  > 47 |   await page.locator('[data-testid="apply-discount-code"]').click();
+       |                                                               ^
+    48 |   await expect(page.locator('[data-testid="discount-applied-banner"]')).toBeVisible();
+    49 | });`;
+
+// Generic per-module error text so every flaky test - not just the hero case
+// above - has plausible failure evidence for the AI to reason about, instead
+// of every "Investigate" call seeing an empty error field.
+function buildGenericErrorMessage(folder: string, testFile: string): string {
+  const templates: Record<string, string> = {
+    'tests/auth': `TimeoutError: locator.waitFor: Timeout 15000ms exceeded.
+waiting for locator('[data-testid="session-token"]') to have a value
+    at ${folder}/${testFile}:23:45`,
+    'tests/checkout': `TimeoutError: page.waitForResponse: Timeout 20000ms exceeded while waiting for event "response"
+waiting for response matching /\\/api\\/checkout\\/quote/
+    at ${folder}/${testFile}:34:12`,
+    'tests/search': `Error: expect(locator).toHaveCount(expected)
+
+Expected: 5
+Received: 0
+
+    at ${folder}/${testFile}:31:41`,
+    'tests/profile': `TimeoutError: page.waitForResponse: Timeout 10000ms exceeded while waiting for event "response"
+waiting for response matching /\\/api\\/profile\\/save/
+    at ${folder}/${testFile}:18:23`,
+    'tests/orders': `AssertionError: expect(received).toEqual(expected)
+
+Expected: "Shipped"
+Received: "Processing"
+
+    at ${folder}/${testFile}:29:37`,
+  };
+  return templates[folder] || `Error: test failed\n    at ${folder}/${testFile}:1:1`;
+}
+
 interface DailyAgg {
   total: number;
   passed: number;
@@ -119,12 +173,13 @@ export async function seedDemoProject(
                 ? new Date(now - Math.random() * 8 * 60 * 60 * 1000)
                 : new Date(dayDate.getTime() + Math.random() * 8 * 60 * 60 * 1000);
             const endTime = new Date(startTime.getTime() + duration);
+            const errorMessage = finalStatus === 'FAILED' ? buildGenericErrorMessage(mod.folder, testFile) : null;
 
             await client.query(
               `INSERT INTO test_results
                (id, project_id, project_name, test_id, test_name, status, duration, retries, flaky_attempts,
-                start_time, end_time, tags, browser, os, environment, build_id, commit_hash, branch_name, author, created_at)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)`,
+                start_time, end_time, error, tags, browser, os, environment, build_id, commit_hash, branch_name, author, created_at)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
               [
                 uuidv4(),
                 projectId,
@@ -137,6 +192,7 @@ export async function seedDemoProject(
                 flakyAttempts,
                 startTime,
                 endTime,
+                errorMessage,
                 [],
                 browser,
                 browser === 'webkit' ? 'macOS' : 'linux',
@@ -172,6 +228,77 @@ export async function seedDemoProject(
             }
           }
         }
+      }
+
+      // Hero failure case: a second, distinctly-named test living in
+      // payment.spec.ts, chromium only, that always passes except today -
+      // giving a reliable, richly-detailed failure to demo "Investigate"
+      // against without waiting on random flakiness.
+      {
+        const heroTestName = 'should apply a discount code before payment';
+        const heroFailsToday = dayOffset === 0;
+        const heroDuration = Math.round(1400 + Math.random() * 400);
+        const heroStartTime =
+          dayOffset === 0
+            ? new Date(now - Math.random() * 4 * 60 * 60 * 1000)
+            : new Date(dayDate.getTime() + Math.random() * 8 * 60 * 60 * 1000);
+        const heroEndTime = new Date(heroStartTime.getTime() + heroDuration);
+        const heroStatus: 'PASSED' | 'FAILED' = heroFailsToday ? 'FAILED' : 'PASSED';
+
+        await client.query(
+          `INSERT INTO test_results
+           (id, project_id, project_name, test_id, test_name, status, duration, retries, flaky_attempts,
+            start_time, end_time, error, tags, browser, os, environment, build_id, commit_hash, branch_name, author, created_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)`,
+          [
+            uuidv4(),
+            projectId,
+            projectName,
+            HERO_FAILURE_TEST_ID,
+            heroTestName,
+            heroStatus,
+            heroDuration,
+            heroFailsToday ? 2 : 0,
+            heroFailsToday ? 1 : 0,
+            heroStartTime,
+            heroEndTime,
+            heroFailsToday ? HERO_FAILURE_ERROR : null,
+            [],
+            'chromium',
+            'linux',
+            'ci',
+            `build-${dateKey}`,
+            commitHash,
+            'main',
+            'ci-bot',
+            heroStartTime,
+          ]
+        );
+        testResultCount += 1;
+
+        const daily = dailyAgg.get(dateKey) || { total: 0, passed: 0, failed: 0, skipped: 0, totalDuration: 0 };
+        daily.total += 1;
+        if (heroStatus === 'PASSED') daily.passed += 1;
+        else daily.failed += 1;
+        daily.totalDuration += heroDuration;
+        dailyAgg.set(dateKey, daily);
+
+        const t = testAgg.get(HERO_FAILURE_TEST_ID) || {
+          testName: heroTestName,
+          total: 0,
+          passed: 0,
+          failed: 0,
+          recentTotal: 0,
+          recentFailed: 0,
+        };
+        t.total += 1;
+        if (heroStatus === 'PASSED') t.passed += 1;
+        else t.failed += 1;
+        if (isRecentDay) {
+          t.recentTotal += 1;
+          if (heroStatus === 'FAILED') t.recentFailed += 1;
+        }
+        testAgg.set(HERO_FAILURE_TEST_ID, t);
       }
     }
 

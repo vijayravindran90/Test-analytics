@@ -1,7 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, AlertTriangle, BarChart3, GitBranch, ShieldCheck, Zap } from 'lucide-react';
+import { Activity, AlertTriangle, BarChart3, GitBranch, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import PricingPlans from '../components/PricingPlans';
+import PlanComparisonTable from '../components/PlanComparisonTable';
 
 const SCREENSHOTS = [
   {
@@ -54,6 +55,12 @@ const FEATURES = [
     title: 'Performance alerts',
     description: 'Get notified the moment a test regresses past your duration threshold, before it slows down your whole suite.',
     color: 'text-danger-600 bg-danger-50',
+  },
+  {
+    icon: Sparkles,
+    title: 'AI test investigation',
+    description: 'One click on a flaky test gets you a root cause analysis, a short-term fix, a long-term fix, and where to look in your code — powered by Claude or your own AI key.',
+    color: 'text-primary-600 bg-primary-50',
   },
   {
     icon: GitBranch,
@@ -158,6 +165,10 @@ export default function Landing() {
 
         <div className="mt-10">
           <PricingPlans />
+        </div>
+
+        <div className="mt-10">
+          <PlanComparisonTable />
         </div>
       </section>
 
