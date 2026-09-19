@@ -13,7 +13,14 @@ import { createSubscriptionCheckout, cancelSubscription, isBillingConfigured } f
 import { sendVerificationEmail, sendContactFormEmail } from '../services/emailService';
 import { seedTestAccount, DEFAULT_TEST_ACCOUNT_EMAIL } from '../services/testAccountService';
 import { seedDemoProject } from '../services/demoDataService';
-import { isInvestigationConfigured, getCachedInvestigation, investigateTest } from '../services/investigationService';
+import {
+  getCachedInvestigation,
+  investigateTest,
+  SharedKeyLimitError,
+  saveUserAiKey,
+  removeUserAiKey,
+  getUserAiKeyStatus,
+} from '../services/investigationService';
 
 interface TestResult {
   id: string;
@@ -559,8 +566,10 @@ router.get('/projects/:projectId/flaky-tests', requireAuth, async (req: Authenti
   }
 });
 
-// AI investigation of a specific failing/flaky test - Pro plan only, since each
-// generation calls the Anthropic API. Returns a cached investigation instantly
+// AI investigation of a specific failing/flaky test - Pro plan only. Uses the
+// user's own AI key if they've added one (unlimited, billed to their own
+// provider account); otherwise falls back to the platform's shared key,
+// capped at a daily limit per user. Returns a cached investigation instantly
 // if one exists; pass forceRefresh to regenerate it.
 router.post('/projects/:projectId/tests/investigate', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -572,10 +581,6 @@ router.post('/projects/:projectId/tests/investigate', requireAuth, async (req: A
     const accessStatus = await userService.getAccessStatus(req.user!.id);
     if (accessStatus.plan !== 'pro' && accessStatus.plan !== 'team') {
       return res.status(403).json({ error: 'AI investigation is a Pro plan feature', code: 'PRO_REQUIRED' });
-    }
-
-    if (!isInvestigationConfigured()) {
-      return res.status(503).json({ error: 'AI investigation is not configured on this server' });
     }
 
     const { testId, testName, forceRefresh } = req.body;
@@ -590,11 +595,54 @@ router.post('/projects/:projectId/tests/investigate', requireAuth, async (req: A
       }
     }
 
-    const investigation = await investigateTest(projectId, testId, testName || testId);
+    const investigation = await investigateTest(req.user!.id, projectId, testId, testName || testId);
     res.json({ ...investigation, cached: false });
   } catch (error: any) {
+    if (error instanceof SharedKeyLimitError) {
+      return res.status(429).json({ error: error.message, code: 'AI_DAILY_LIMIT_REACHED' });
+    }
     console.error('Error running AI investigation:', error);
     res.status(500).json({ error: error?.message || 'Failed to investigate this test' });
+  }
+});
+
+// BYOK: let a user configure their own Anthropic/OpenAI key for AI
+// investigation, so their usage isn't capped by (or billed to) the shared key.
+router.get('/auth/ai-key', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const status = await getUserAiKeyStatus(req.user!.id);
+    res.json(status || { provider: null, last4: null });
+  } catch (error) {
+    console.error('Error fetching AI key status:', error);
+    res.status(500).json({ error: 'Failed to fetch AI key status' });
+  }
+});
+
+router.post('/auth/ai-key', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { provider, apiKey } = req.body;
+    if (provider !== 'anthropic' && provider !== 'openai') {
+      return res.status(400).json({ error: 'provider must be "anthropic" or "openai"' });
+    }
+    if (!apiKey || typeof apiKey !== 'string') {
+      return res.status(400).json({ error: 'apiKey is required' });
+    }
+
+    const result = await saveUserAiKey(req.user!.id, provider, apiKey);
+    res.json(result);
+  } catch (error: any) {
+    console.error('Error saving AI key:', error);
+    res.status(400).json({ error: error?.message || 'Failed to save AI key' });
+  }
+});
+
+router.delete('/auth/ai-key', requireAuth, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    await removeUserAiKey(req.user!.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error removing AI key:', error);
+    res.status(500).json({ error: 'Failed to remove AI key' });
   }
 });
 

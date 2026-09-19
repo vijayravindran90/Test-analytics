@@ -1,26 +1,23 @@
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import { v4 as uuidv4 } from 'uuid';
 import pool from '../db';
 import testService from './testService';
+import userService from './userService';
+import { encrypt, decrypt, isEncryptionConfigured } from '../utils/encryption';
 
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const MODEL = 'claude-sonnet-4-5';
-
-let client: Anthropic | null = null;
-
-function getClient(): Anthropic {
-  if (!ANTHROPIC_API_KEY) {
-    throw new Error('AI investigation is not configured on this server (missing ANTHROPIC_API_KEY)');
-  }
-  if (!client) {
-    client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
-  }
-  return client;
-}
+const SHARED_ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const SHARED_ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5';
+// OpenAI's model lineup moves fast and this default will go stale - override
+// via OPENAI_MODEL if a user's configured OpenAI key stops working with it.
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
+const SHARED_KEY_DAILY_LIMIT = parseInt(process.env.AI_SHARED_KEY_DAILY_LIMIT || '5', 10);
 
 export function isInvestigationConfigured(): boolean {
-  return Boolean(ANTHROPIC_API_KEY);
+  return Boolean(SHARED_ANTHROPIC_API_KEY);
 }
+
+export type AiProvider = 'anthropic' | 'openai';
 
 export interface TestInvestigation {
   testId: string;
@@ -32,6 +29,12 @@ export interface TestInvestigation {
   suggestedSolution: string;
   modelUsed: string | null;
   updatedAt: Date;
+}
+
+export class SharedKeyLimitError extends Error {
+  constructor(public limit: number) {
+    super(`Daily limit of ${limit} AI investigations reached for the shared key. Add your own Anthropic or OpenAI key for unlimited use.`);
+  }
 }
 
 function mapRow(row: any): TestInvestigation {
@@ -55,6 +58,86 @@ export async function getCachedInvestigation(projectId: string, testId: string):
   );
   return result.rows.length > 0 ? mapRow(result.rows[0]) : null;
 }
+
+// --- BYOK key management -----------------------------------------------
+
+export async function saveUserAiKey(userId: string, provider: AiProvider, apiKey: string): Promise<{ provider: AiProvider; last4: string }> {
+  if (!isEncryptionConfigured()) {
+    throw new Error('Storing your own AI key is not configured on this server (missing ENCRYPTION_KEY)');
+  }
+  const trimmed = apiKey.trim();
+  if (trimmed.length < 10) {
+    throw new Error('That does not look like a valid API key');
+  }
+  const last4 = trimmed.slice(-4);
+  const encrypted = encrypt(trimmed);
+  await userService.setAiKey(userId, provider, encrypted, last4);
+  return { provider, last4 };
+}
+
+export async function removeUserAiKey(userId: string): Promise<void> {
+  await userService.removeAiKey(userId);
+}
+
+export async function getUserAiKeyStatus(userId: string): Promise<{ provider: AiProvider; last4: string } | null> {
+  const key = await userService.getAiKey(userId);
+  return key ? { provider: key.provider, last4: key.last4 } : null;
+}
+
+// --- Provider calls -------------------------------------------------------
+
+async function callAnthropic(apiKey: string, model: string, systemPrompt: string, userPrompt: string): Promise<string> {
+  const anthropic = new Anthropic({ apiKey });
+  const response = await anthropic.messages.create({
+    model,
+    max_tokens: 1500,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userPrompt }],
+  });
+  const textBlock = response.content.find((block) => block.type === 'text');
+  if (!textBlock || textBlock.type !== 'text') {
+    throw new Error('AI investigation did not return a text response');
+  }
+  return textBlock.text;
+}
+
+async function callOpenAi(apiKey: string, model: string, systemPrompt: string, userPrompt: string): Promise<string> {
+  const openai = new OpenAI({ apiKey });
+  const response = await openai.chat.completions.create({
+    model,
+    max_tokens: 1500,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+  });
+  const text = response.choices[0]?.message?.content;
+  if (!text) {
+    throw new Error('AI investigation did not return a text response');
+  }
+  return text;
+}
+
+function parseInvestigationJson(text: string): Record<string, string> {
+  let parsed: Record<string, string>;
+  try {
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    parsed = JSON.parse(jsonMatch ? jsonMatch[0] : text);
+  } catch {
+    throw new Error('Failed to parse the AI investigation response');
+  }
+
+  const required = ['rootCauseAnalysis', 'shortTermFix', 'longTermFix', 'codeLocation', 'suggestedSolution'];
+  for (const key of required) {
+    if (typeof parsed[key] !== 'string' || !parsed[key].trim()) {
+      throw new Error(`AI investigation response is missing "${key}"`);
+    }
+  }
+  return parsed;
+}
+
+// --- Prompt construction ----------------------------------------------------
 
 const JSON_RESPONSE_INSTRUCTIONS = `Respond with ONLY a single JSON object, no markdown fences, no prose outside the JSON, with exactly these string keys: "rootCauseAnalysis", "shortTermFix", "longTermFix", "codeLocation", "suggestedSolution".`;
 
@@ -107,12 +190,36 @@ Ground your analysis in what the evidence actually shows:
 
 Keep each field to 2-5 sentences. Be specific to the evidence given, not generic testing advice.`;
 
+// --- Main entry point --------------------------------------------------
+
 export async function investigateTest(
+  userId: string,
   projectId: string,
   testId: string,
   testName: string
 ): Promise<TestInvestigation> {
-  const anthropic = getClient();
+  const ownKey = await userService.getAiKey(userId);
+
+  let provider: AiProvider;
+  let apiKey: string;
+  let model: string;
+
+  if (ownKey) {
+    provider = ownKey.provider;
+    apiKey = decrypt(ownKey.encryptedKey);
+    model = provider === 'anthropic' ? SHARED_ANTHROPIC_MODEL : OPENAI_MODEL;
+  } else {
+    if (!SHARED_ANTHROPIC_API_KEY) {
+      throw new Error('AI investigation is not configured on this server');
+    }
+    const usedToday = await userService.getSharedAiKeyUsageToday(userId);
+    if (usedToday >= SHARED_KEY_DAILY_LIMIT) {
+      throw new SharedKeyLimitError(SHARED_KEY_DAILY_LIMIT);
+    }
+    provider = 'anthropic';
+    apiKey = SHARED_ANTHROPIC_API_KEY;
+    model = SHARED_ANTHROPIC_MODEL;
+  }
 
   const [flakyRows, failures] = await Promise.all([
     pool.query(
@@ -135,31 +242,30 @@ export async function investigateTest(
 
   const prompt = buildPrompt({ testId, testName, flakiness, failures });
 
-  const response = await anthropic.messages.create({
-    model: MODEL,
-    max_tokens: 1500,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: 'user', content: prompt }],
-  });
-
-  const textBlock = response.content.find((block) => block.type === 'text');
-  if (!textBlock || textBlock.type !== 'text') {
-    throw new Error('AI investigation did not return a text response');
-  }
-
-  let parsed: Record<string, string>;
+  let rawText: string;
   try {
-    const jsonMatch = textBlock.text.match(/\{[\s\S]*\}/);
-    parsed = JSON.parse(jsonMatch ? jsonMatch[0] : textBlock.text);
-  } catch {
-    throw new Error('Failed to parse the AI investigation response');
+    rawText =
+      provider === 'anthropic'
+        ? await callAnthropic(apiKey, model, SYSTEM_PROMPT, prompt)
+        : await callOpenAi(apiKey, model, SYSTEM_PROMPT, prompt);
+  } catch (err: any) {
+    if (ownKey && (err?.status === 401 || err?.status === 403)) {
+      throw new Error(
+        `Your saved ${provider === 'anthropic' ? 'Anthropic' : 'OpenAI'} key was rejected. Check it's correct in Integration settings.`
+      );
+    }
+    if (ownKey && err?.status === 429) {
+      throw new Error(`Your ${provider === 'anthropic' ? 'Anthropic' : 'OpenAI'} account has hit its own rate limit or quota.`);
+    }
+    throw new Error(`The AI provider request failed: ${err?.message || 'unknown error'}`);
   }
 
-  const required = ['rootCauseAnalysis', 'shortTermFix', 'longTermFix', 'codeLocation', 'suggestedSolution'];
-  for (const key of required) {
-    if (typeof parsed[key] !== 'string' || !parsed[key].trim()) {
-      throw new Error(`AI investigation response is missing "${key}"`);
-    }
+  const parsed = parseInvestigationJson(rawText);
+
+  // Only charge against the daily cap once the call actually succeeded, so a
+  // failed generation doesn't burn part of the user's free allowance.
+  if (!ownKey) {
+    await userService.incrementSharedAiKeyUsage(userId);
   }
 
   const id = uuidv4();
@@ -180,7 +286,7 @@ export async function investigateTest(
       parsed.longTermFix,
       parsed.codeLocation,
       parsed.suggestedSolution,
-      MODEL,
+      `${provider}:${model}`,
     ]
   );
 
@@ -192,7 +298,7 @@ export async function investigateTest(
     longTermFix: parsed.longTermFix,
     codeLocation: parsed.codeLocation,
     suggestedSolution: parsed.suggestedSolution,
-    modelUsed: MODEL,
+    modelUsed: `${provider}:${model}`,
     updatedAt: new Date(),
   };
 }

@@ -34,11 +34,13 @@ export default function TestInvestigationModal({ projectId, testId, testName, on
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [needsUpgrade, setNeedsUpgrade] = useState(false);
+  const [dailyLimitReached, setDailyLimitReached] = useState(false);
 
   const runInvestigation = async (forceRefresh: boolean) => {
     setLoading(true);
     setError(null);
     setNeedsUpgrade(false);
+    setDailyLimitReached(false);
     try {
       const response = await apiClient.post(`/projects/${projectId}/tests/investigate`, {
         testId,
@@ -49,6 +51,8 @@ export default function TestInvestigationModal({ projectId, testId, testName, on
     } catch (err: any) {
       if (err?.response?.data?.code === 'PRO_REQUIRED') {
         setNeedsUpgrade(true);
+      } else if (err?.response?.data?.code === 'AI_DAILY_LIMIT_REACHED') {
+        setDailyLimitReached(true);
       } else {
         setError(err?.response?.data?.error || 'Unable to investigate this test right now.');
       }
@@ -85,6 +89,14 @@ export default function TestInvestigationModal({ projectId, testId, testName, on
             <div className="rounded-xl border border-primary-200 bg-primary-50 p-4 text-sm text-primary-800">
               AI investigation is a Pro plan feature. <Link to="/billing" className="font-semibold underline">Upgrade to Pro</Link> to
               get root cause analysis, fix suggestions, and code-location hints for your flaky tests.
+            </div>
+          )}
+
+          {dailyLimitReached && (
+            <div className="rounded-xl border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800">
+              You've reached today's limit on the shared AI key. Add your own Anthropic or OpenAI key in{' '}
+              <Link to="/integration" className="font-semibold underline">Integration settings</Link> for unlimited investigations,
+              or try again tomorrow.
             </div>
           )}
 

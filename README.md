@@ -202,14 +202,21 @@ Unlike Stripe, Razorpay doesn't provide a hosted self-service portal for updatin
 
 ### Optional: Set Up AI Test Investigation
 
-Pro-plan users can click **Investigate** on any flaky test to get an AI-generated root cause analysis, a short-term fix, a long-term fix, and a best-effort pointer to where in the code to look — powered by the [Anthropic API](https://console.anthropic.com). This costs real money per investigation (usage-based), so it's gated to the Pro plan and results are cached per test until the user clicks "Re-investigate."
+Pro-plan users can click **Investigate** on any flaky test to get an AI-generated root cause analysis, a short-term fix, a long-term fix, and a best-effort pointer to where in the code to look. This costs real money per investigation (usage-based against whichever AI provider key is in play), so it's gated to the Pro plan and results are cached per test until the user clicks "Re-investigate."
 
+**The platform's shared key** (used when a user hasn't added their own):
 1. Create an API key at [console.anthropic.com](https://console.anthropic.com) (Settings → API keys)
-2. Add to `packages/backend/.env`:
+2. Generate an encryption key for storing user-provided keys (see BYOK below — required even if you don't expect anyone to use BYOK, since the column exists regardless): `openssl rand -hex 32`
+3. Add to `packages/backend/.env`:
    ```ini
    ANTHROPIC_API_KEY=sk-ant-...
+   ENCRYPTION_KEY=<64 hex characters from step 2>
+   AI_SHARED_KEY_DAILY_LIMIT=5
    ```
-3. That's it — no webhook or extra setup needed. Without this variable set, clicking Investigate returns a friendly "AI investigation is not configured" error instead of failing silently.
+   `AI_SHARED_KEY_DAILY_LIMIT` caps how many investigations per day a single user can run against your shared key before being told to add their own (default 5 if unset).
+4. That's it — no webhook needed. Without `ANTHROPIC_API_KEY` set, clicking Investigate returns a friendly "AI investigation is not configured" error instead of failing silently.
+
+**Bring-your-own-key (BYOK)**: from the **Integration** page (profile menu), any user can add their own Anthropic or OpenAI key instead of using the shared one — unlimited use, billed to their own provider account instead of yours. Keys are encrypted at rest (AES-256-GCM, via `ENCRYPTION_KEY`) and only ever decrypted server-side to make the API call; the UI only ever shows the last 4 characters. If `ENCRYPTION_KEY` isn't set, saving a BYOK key fails with a clear error rather than storing it insecurely.
 
 Since this only has access to the test's file path/title and the error messages Playwright already captured (not your actual application or test source code), treat the code-location guidance as an informed inference, not a guaranteed pinpoint.
 
@@ -394,7 +401,11 @@ All project endpoints require authentication.
 - `POST /api/projects/:projectId/tests/investigate` - AI root cause analysis for a flaky/failing test (Pro plan only)
   - Body: `{ testId, testName, forceRefresh? }` - returns a cached result instantly unless `forceRefresh` is true
   - Returns: `{ rootCauseAnalysis, shortTermFix, longTermFix, codeLocation, suggestedSolution, cached, updatedAt }`
-  - `403 { code: 'PRO_REQUIRED' }` if the account isn't on Pro/Team; `503` if `ANTHROPIC_API_KEY` isn't configured
+  - `403 { code: 'PRO_REQUIRED' }` if the account isn't on Pro/Team; `429 { code: 'AI_DAILY_LIMIT_REACHED' }` if using the shared key past its daily cap
+- `GET /api/auth/ai-key` - Current user's BYOK status - `{ provider: 'anthropic'|'openai'|null, last4: string|null }`
+- `POST /api/auth/ai-key` - Save the current user's own AI provider key (BYOK)
+  - Body: `{ provider: 'anthropic'|'openai', apiKey }`
+- `DELETE /api/auth/ai-key` - Remove the current user's own AI key, reverting to the shared key (with its daily cap)
 
 ### Advanced Analytics (NEW)
 
