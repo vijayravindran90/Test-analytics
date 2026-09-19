@@ -4,7 +4,7 @@
   "main": "dist/server.js",
   "scripts": {
     "dev": "ts-node src/server.ts",
-    "build": "tsc",
+    "build": "tsc && node -e \"const fs=require('fs');fs.cpSync('src/migrations','dist/migrations',{recursive:true})\"",
     "start": "node dist/server.js",
     "db:migrate": "ts-node src/scripts/run-migrations.ts",
     "db:migrate:prod": "node dist/scripts/run-migrations.js",
