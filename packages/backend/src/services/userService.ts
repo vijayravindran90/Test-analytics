@@ -369,6 +369,49 @@ export class UserService {
     return this.mapUser(userRow);
   }
 
+  async setAiKey(userId: string, provider: 'anthropic' | 'openai', encryptedKey: string, last4: string): Promise<void> {
+    await pool.query(
+      `UPDATE users SET ai_provider = $1, ai_api_key_encrypted = $2, ai_api_key_last4 = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4`,
+      [provider, encryptedKey, last4, userId]
+    );
+  }
+
+  async removeAiKey(userId: string): Promise<void> {
+    await pool.query(
+      `UPDATE users SET ai_provider = NULL, ai_api_key_encrypted = NULL, ai_api_key_last4 = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [userId]
+    );
+  }
+
+  async getAiKey(userId: string): Promise<{ provider: 'anthropic' | 'openai'; encryptedKey: string; last4: string } | null> {
+    const result = await pool.query(`SELECT ai_provider, ai_api_key_encrypted, ai_api_key_last4 FROM users WHERE id = $1`, [userId]);
+    const row = result.rows[0];
+    if (!row?.ai_provider || !row?.ai_api_key_encrypted) {
+      return null;
+    }
+    return { provider: row.ai_provider, encryptedKey: row.ai_api_key_encrypted, last4: row.ai_api_key_last4 };
+  }
+
+  /** Increments today's shared-key AI usage for this user and returns the new count. */
+  async incrementSharedAiKeyUsage(userId: string): Promise<number> {
+    const result = await pool.query(
+      `INSERT INTO ai_shared_key_usage (user_id, usage_date, investigation_count)
+       VALUES ($1, CURRENT_DATE, 1)
+       ON CONFLICT (user_id, usage_date) DO UPDATE SET investigation_count = ai_shared_key_usage.investigation_count + 1
+       RETURNING investigation_count`,
+      [userId]
+    );
+    return result.rows[0].investigation_count;
+  }
+
+  async getSharedAiKeyUsageToday(userId: string): Promise<number> {
+    const result = await pool.query(
+      `SELECT investigation_count FROM ai_shared_key_usage WHERE user_id = $1 AND usage_date = CURRENT_DATE`,
+      [userId]
+    );
+    return result.rows[0]?.investigation_count || 0;
+  }
+
   private mapUser(row: any): User {
     return {
       id: row.id,

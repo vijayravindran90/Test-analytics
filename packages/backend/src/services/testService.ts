@@ -756,6 +756,30 @@ export class TestService {
     }));
   }
 
+  async getTestFailureHistory(
+    projectId: string,
+    testId: string,
+    limit: number = 5
+  ): Promise<Pick<TestResult, 'error' | 'browser' | 'os' | 'startTime' | 'duration' | 'retries'>[]> {
+    const result = await pool.query(
+      `SELECT error, browser, os, start_time, duration, retries
+       FROM test_results
+       WHERE project_id = $1 AND test_id = $2 AND status IN ('FAILED', 'TIMEOUT') AND error IS NOT NULL
+       ORDER BY created_at DESC
+       LIMIT $3`,
+      [projectId, testId, limit]
+    );
+
+    return result.rows.map((row: any) => ({
+      error: row.error,
+      browser: row.browser,
+      os: row.os,
+      startTime: row.start_time,
+      duration: row.duration,
+      retries: row.retries,
+    }));
+  }
+
   async getPerformanceAlerts(projectId: string, limit: number = 10): Promise<PerformanceAlert[]> {
     const result = await pool.query(
       `SELECT id, test_id, test_name, threshold, current_duration, previous_duration, percentage_increase, alerted_at

@@ -4,6 +4,7 @@ import {
   Activity,
   AlertTriangle,
   BarChart3,
+  Bot,
   Download,
   GitBranch,
   Grid3x3,
@@ -13,6 +14,7 @@ import {
   Sparkles,
   TrendingUp,
 } from 'lucide-react';
+import PlanComparisonTable from '../components/PlanComparisonTable';
 
 const SECTIONS = [
   { id: 'getting-started', label: 'Getting started' },
@@ -210,6 +212,17 @@ GITHUB_ACTOR`}</CodeBlock>
               </p>
             </FeatureCard>
 
+            <FeatureCard icon={Bot} title="AI test investigation">
+              <p>
+                Click <strong>Investigate</strong> on any flaky test (Pro plan) to get a root cause analysis, a
+                short-term fix, a long-term fix, and a best-effort pointer to where in your code to look — generated
+                from the test's file path and Playwright's captured error messages. Uses our shared key by default
+                (a few investigations/day); add your own Anthropic or OpenAI key from the{' '}
+                <Link to="/integration" className="text-primary-600 hover:underline">Integration</Link> page for
+                unlimited use.
+              </p>
+            </FeatureCard>
+
             <FeatureCard icon={Activity} title="Performance alerts">
               <p>
                 When a test's duration exceeds a threshold (or jumps sharply vs. its previous run), it's flagged here
@@ -307,6 +320,10 @@ GITHUB_ACTOR`}</CodeBlock>
               <Link to="/billing" className="text-primary-600 hover:underline">Billing</Link> (from your profile menu) to
               change plans or manage an existing subscription.
             </p>
+          </div>
+
+          <div className="mt-4">
+            <PlanComparisonTable />
           </div>
         </section>
       </div>

@@ -1,5 +1,113 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import apiClient from '../api/client';
+
+type AiProvider = 'anthropic' | 'openai';
+
+function AiKeyCard() {
+  const [status, setStatus] = useState<{ provider: AiProvider | null; last4: string | null } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [provider, setProvider] = useState<AiProvider>('anthropic');
+  const [apiKey, setApiKey] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = async () => {
+    try {
+      const response = await apiClient.get('/auth/ai-key');
+      setStatus(response.data);
+    } catch {
+      setStatus({ provider: null, last4: null });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const handleSave = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await apiClient.post('/auth/ai-key', { provider, apiKey });
+      setApiKey('');
+      await load();
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Unable to save that key');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemove = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await apiClient.delete('/auth/ai-key');
+      await load();
+    } catch (err: any) {
+      setError(err?.response?.data?.error || 'Unable to remove your key');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="card p-6 border border-neutral-200 bg-white shadow-sm">
+      <h2 className="text-xl font-semibold">AI investigation key (optional)</h2>
+      <p className="mt-3 text-neutral-600">
+        "Investigate" on a flaky test uses our shared key by default, capped at a few investigations per day. Add your own
+        Anthropic or OpenAI key for unlimited use, billed to your own account instead.
+      </p>
+
+      {!loading && status?.provider && (
+        <div className="mt-6 flex items-center justify-between rounded-xl border border-success-200 bg-success-50 p-4 text-sm text-success-800">
+          <span>
+            Using your <strong>{status.provider === 'anthropic' ? 'Anthropic' : 'OpenAI'}</strong> key ending in{' '}
+            <strong>{status.last4}</strong>
+          </span>
+          <button type="button" onClick={handleRemove} disabled={saving} className="btn btn-secondary">
+            Remove
+          </button>
+        </div>
+      )}
+
+      {!loading && !status?.provider && (
+        <form onSubmit={handleSave} className="mt-6 space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">Provider</label>
+            <select
+              value={provider}
+              onChange={(e) => setProvider(e.target.value as AiProvider)}
+              className="w-full rounded-lg border px-4 py-2"
+            >
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="openai">OpenAI</option>
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-neutral-700">API key</label>
+            <input
+              type="password"
+              required
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder={provider === 'anthropic' ? 'sk-ant-...' : 'sk-...'}
+              className="w-full rounded-lg border px-4 py-2"
+            />
+          </div>
+          {error && <p className="text-sm text-danger-600">{error}</p>}
+          <button type="submit" disabled={saving} className="btn btn-primary">
+            {saving ? 'Saving...' : 'Save key'}
+          </button>
+        </form>
+      )}
+    </div>
+  );
+}
 
 export default function Integration() {
   return (
@@ -62,6 +170,8 @@ export default function Integration() {
           </pre>
           </div>
         </div>
+
+        <AiKeyCard />
       </div>
     </div>
   );
