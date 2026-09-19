@@ -13,6 +13,7 @@ import { createSubscriptionCheckout, cancelSubscription, isBillingConfigured } f
 import { sendVerificationEmail, sendContactFormEmail } from '../services/emailService';
 import { seedTestAccount, DEFAULT_TEST_ACCOUNT_EMAIL } from '../services/testAccountService';
 import { seedDemoProject } from '../services/demoDataService';
+import { runMigrations } from '../services/migrationRunner';
 import {
   getCachedInvestigation,
   investigateTest,
@@ -1132,6 +1133,38 @@ async function handleSeedDemoData(req: Request, res: Response) {
 
 router.get('/admin/seed-demo-data', handleSeedDemoData);
 router.post('/admin/seed-demo-data', handleSeedDemoData);
+
+// Run all pending SQL migrations (packages/backend/src/migrations/*.sql) against
+// the connected database. Railway's deploy process does not run migrations
+// automatically, so this is the way to bring production schema up to date from
+// a browser when there is no CLI access. Same ADMIN_KEY gate as the routes
+// above, no hardcoded fallback key.
+async function handleRunMigrations(req: Request, res: Response) {
+  try {
+    const adminKey = (req.method === 'GET' ? req.query.adminKey : req.body?.adminKey) as string | undefined;
+
+    if (!process.env.ADMIN_KEY || adminKey !== process.env.ADMIN_KEY) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const result = await runMigrations();
+
+    res.json({
+      success: true,
+      applied: result.applied,
+      alreadyApplied: result.alreadyApplied,
+      message: result.applied.length > 0
+        ? `Applied ${result.applied.length} migration(s): ${result.applied.join(', ')}`
+        : 'No pending migrations - database is already up to date.',
+    });
+  } catch (error) {
+    console.error('Error running migrations:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to run migrations' });
+  }
+}
+
+router.get('/admin/run-migrations', handleRunMigrations);
+router.post('/admin/run-migrations', handleRunMigrations);
 
 // Run database migrations
 router.post('/admin/migrate', async (req: Request, res: Response) => {
