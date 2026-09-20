@@ -27,6 +27,8 @@ export interface TestInvestigation {
   longTermFix: string;
   codeLocation: string;
   suggestedSolution: string;
+  codeFix: string;
+  codeFixLanguage: string;
   modelUsed: string | null;
   updatedAt: Date;
 }
@@ -46,6 +48,8 @@ function mapRow(row: any): TestInvestigation {
     longTermFix: row.long_term_fix,
     codeLocation: row.code_location,
     suggestedSolution: row.suggested_solution,
+    codeFix: row.code_fix || '',
+    codeFixLanguage: row.code_fix_language || 'typescript',
     modelUsed: row.model_used,
     updatedAt: row.updated_at,
   };
@@ -90,7 +94,7 @@ async function callAnthropic(apiKey: string, model: string, systemPrompt: string
   const anthropic = new Anthropic({ apiKey });
   const response = await anthropic.messages.create({
     model,
-    max_tokens: 1500,
+    max_tokens: 2500,
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
   });
@@ -105,7 +109,7 @@ async function callOpenAi(apiKey: string, model: string, systemPrompt: string, u
   const openai = new OpenAI({ apiKey });
   const response = await openai.chat.completions.create({
     model,
-    max_tokens: 1500,
+    max_tokens: 2500,
     response_format: { type: 'json_object' },
     messages: [
       { role: 'system', content: systemPrompt },
@@ -128,18 +132,21 @@ function parseInvestigationJson(text: string): Record<string, string> {
     throw new Error('Failed to parse the AI investigation response');
   }
 
-  const required = ['rootCauseAnalysis', 'shortTermFix', 'longTermFix', 'codeLocation', 'suggestedSolution'];
+  const required = ['rootCauseAnalysis', 'shortTermFix', 'longTermFix', 'codeLocation', 'suggestedSolution', 'codeFix'];
   for (const key of required) {
     if (typeof parsed[key] !== 'string' || !parsed[key].trim()) {
       throw new Error(`AI investigation response is missing "${key}"`);
     }
+  }
+  if (typeof parsed.codeFixLanguage !== 'string' || !parsed.codeFixLanguage.trim()) {
+    parsed.codeFixLanguage = 'typescript';
   }
   return parsed;
 }
 
 // --- Prompt construction ----------------------------------------------------
 
-const JSON_RESPONSE_INSTRUCTIONS = `Respond with ONLY a single JSON object, no markdown fences, no prose outside the JSON, with exactly these string keys: "rootCauseAnalysis", "shortTermFix", "longTermFix", "codeLocation", "suggestedSolution".`;
+const JSON_RESPONSE_INSTRUCTIONS = `Respond with ONLY a single JSON object, no markdown fences, no prose outside the JSON, with exactly these string keys: "rootCauseAnalysis", "shortTermFix", "longTermFix", "codeLocation", "suggestedSolution", "codeFix", "codeFixLanguage". Inside the "codeFix" string, use \\n for newlines and escape quotes properly so the value is valid JSON - do not wrap it in markdown code fences.`;
 
 function buildPrompt(params: {
   testId: string;
@@ -187,8 +194,10 @@ Ground your analysis in what the evidence actually shows:
 - shortTermFix should be something the team can do today without a large refactor (e.g. add an explicit wait, increase a timeout, retry a flaky network call, quarantine the test).
 - longTermFix should address the underlying cause (e.g. fix a race condition in the app, stabilize a selector, remove a hidden dependency on timing/order).
 - suggestedSolution should be concrete and actionable - a code-level suggestion (e.g. a Playwright API to use, a locator strategy, a wait condition) rather than generic advice like "investigate further".
+- codeFix must be a complete, ready-to-paste code snippet (not a diff, not a fragment with "..." gaps) that a developer can copy directly into their IDE - typically a corrected version of the test (using the inferred file path and title as context) showing the specific change (e.g. an explicit wait, a more resilient locator, a retry wrapper, an increased timeout). Include a one-line comment above the changed line(s) explaining why. Since you cannot see the real test source, base it on Playwright/TypeScript conventions and clearly-named placeholder locators/selectors consistent with the error message, and add a short comment at the top noting it's a representative fix to adapt to their actual test code, not a verbatim diff of it.
+- codeFixLanguage is the language of the codeFix snippet, almost always "typescript" for a Playwright project unless the error evidence clearly indicates otherwise.
 
-Keep each field to 2-5 sentences. Be specific to the evidence given, not generic testing advice.`;
+Keep rootCauseAnalysis, shortTermFix, longTermFix, codeLocation and suggestedSolution to 2-5 sentences each. Be specific to the evidence given, not generic testing advice.`;
 
 // --- Main entry point --------------------------------------------------
 
@@ -271,11 +280,12 @@ export async function investigateTest(
   const id = uuidv4();
   await pool.query(
     `INSERT INTO test_investigations
-     (id, project_id, test_id, test_name, root_cause_analysis, short_term_fix, long_term_fix, code_location, suggested_solution, model_used, updated_at)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10, CURRENT_TIMESTAMP)
+     (id, project_id, test_id, test_name, root_cause_analysis, short_term_fix, long_term_fix, code_location, suggested_solution, code_fix, code_fix_language, model_used, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, CURRENT_TIMESTAMP)
      ON CONFLICT (project_id, test_id) DO UPDATE SET
        test_name = $4, root_cause_analysis = $5, short_term_fix = $6, long_term_fix = $7,
-       code_location = $8, suggested_solution = $9, model_used = $10, updated_at = CURRENT_TIMESTAMP`,
+       code_location = $8, suggested_solution = $9, code_fix = $10, code_fix_language = $11,
+       model_used = $12, updated_at = CURRENT_TIMESTAMP`,
     [
       id,
       projectId,
@@ -286,6 +296,8 @@ export async function investigateTest(
       parsed.longTermFix,
       parsed.codeLocation,
       parsed.suggestedSolution,
+      parsed.codeFix,
+      parsed.codeFixLanguage,
       `${provider}:${model}`,
     ]
   );
@@ -298,6 +310,8 @@ export async function investigateTest(
     longTermFix: parsed.longTermFix,
     codeLocation: parsed.codeLocation,
     suggestedSolution: parsed.suggestedSolution,
+    codeFix: parsed.codeFix,
+    codeFixLanguage: parsed.codeFixLanguage,
     modelUsed: `${provider}:${model}`,
     updatedAt: new Date(),
   };

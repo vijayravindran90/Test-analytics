@@ -9,12 +9,20 @@ interface PricingPlansProps {
   currentPlan?: PlanId;
 }
 
+// Pro and Team are hidden from purchase for now, while every account gets
+// Pro-level features on the free trial for a feedback beta (see plans.ts).
+// Remove this to bring paid plans back.
+const HIDDEN_PLAN_IDS: PlanId[] = ['pro', 'team'];
+
 export default function PricingPlans({ currentPlan }: PricingPlansProps) {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [interval, setInterval] = useState<BillingInterval>('monthly');
   const [pendingPlan, setPendingPlan] = useState<PlanId | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const visiblePlans = PLANS.filter((plan) => !HIDDEN_PLAN_IDS.includes(plan.id) || plan.id === currentPlan);
+  const showIntervalToggle = visiblePlans.some((plan) => plan.priceMonthly > 0);
 
   const handleSelectPlan = async (planId: PlanId) => {
     setError(null);
@@ -42,6 +50,7 @@ export default function PricingPlans({ currentPlan }: PricingPlansProps) {
 
   return (
     <div>
+      {showIntervalToggle && (
       <div className="flex justify-center">
         <div className="inline-flex items-center gap-1 rounded-full border border-neutral-200 bg-white p-1 shadow-sm">
           {(['monthly', 'annual'] as BillingInterval[]).map((option) => (
@@ -67,9 +76,10 @@ export default function PricingPlans({ currentPlan }: PricingPlansProps) {
           ))}
         </div>
       </div>
+      )}
 
-      <div className="mt-8 grid gap-6 md:grid-cols-3">
-        {PLANS.map((plan) => {
+      <div className={`mt-8 grid gap-6 ${visiblePlans.length > 1 ? 'md:grid-cols-3' : 'mx-auto max-w-md'}`}>
+        {visiblePlans.map((plan) => {
           const isCurrent = currentPlan === plan.id;
           const showAnnual = interval === 'annual' && plan.priceAnnualMonthly !== undefined;
           const displayPrice = showAnnual ? plan.priceAnnualMonthly! : plan.priceMonthly;
