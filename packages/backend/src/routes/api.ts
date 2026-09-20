@@ -579,10 +579,11 @@ router.post('/projects/:projectId/tests/investigate', requireAuth, async (req: A
       return;
     }
 
-    const accessStatus = await userService.getAccessStatus(req.user!.id);
-    if (accessStatus.plan !== 'pro' && accessStatus.plan !== 'team') {
-      return res.status(403).json({ error: 'AI investigation is a Pro plan feature', code: 'PRO_REQUIRED' });
-    }
+    // Temporarily open to every plan (including a free trial) while Pro/Team
+    // purchases are hidden for a feedback beta - ensureProjectAccess above
+    // already confirmed the trial/subscription itself is still active.
+    // Restore the `plan !== 'pro' && plan !== 'team'` -> PRO_REQUIRED check
+    // here when Pro/Team pricing comes back.
 
     const { testId, testName, forceRefresh } = req.body;
     if (!testId || typeof testId !== 'string') {

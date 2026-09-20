@@ -214,7 +214,7 @@ GITHUB_ACTOR`}</CodeBlock>
 
             <FeatureCard icon={Bot} title="AI test investigation">
               <p>
-                Click <strong>Investigate</strong> on any flaky test (Pro plan) to get a root cause analysis, a
+                Click <strong>Investigate</strong> on any flaky test to get a root cause analysis, a
                 short-term fix, a long-term fix, and a best-effort pointer to where in your code to look — generated
                 from the test's file path and Playwright's captured error messages. Uses our shared key by default
                 (a few investigations/day); add your own Anthropic or OpenAI key from the{' '}

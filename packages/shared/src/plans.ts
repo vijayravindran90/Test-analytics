@@ -28,20 +28,29 @@ export const FREE_TRIAL_DAYS = 14;
 /** Currency all paid plans are billed in via Razorpay. */
 export const CURRENCY_SYMBOL = '₹';
 
+// Pro and Team are temporarily hidden from purchase (see HIDDEN_PLAN_IDS in
+// the frontend's PricingPlans component) while we run a free-for-everyone
+// beta to collect feedback. The free plan below is granted Pro-level limits
+// and features for the duration of that beta - revert these three fields
+// (maxProjects, retentionDays, features) and remove HIDDEN_PLAN_IDS to go
+// back to normal tiered pricing.
 export const PLANS: PlanDefinition[] = [
   {
     id: 'free',
     name: 'Free',
-    tagline: `Start your ${FREE_TRIAL_DAYS}-day free trial`,
+    tagline: `Try everything free for ${FREE_TRIAL_DAYS} days`,
     priceMonthly: 0,
-    maxProjects: 1,
-    retentionDays: 14,
+    maxProjects: 10,
+    retentionDays: 90,
     trialDays: FREE_TRIAL_DAYS,
     features: [
-      `${FREE_TRIAL_DAYS}-day free trial`,
-      '1 project',
+      `${FREE_TRIAL_DAYS}-day free trial - all features included`,
+      'Up to 10 projects',
+      '90-day test history',
       'Pass rate, flakiness & duration metrics',
-      'Upgrade anytime to keep access',
+      'Flaky test detection & alerts',
+      'AI test failure investigation',
+      'Slack notifications',
     ],
   },
   {

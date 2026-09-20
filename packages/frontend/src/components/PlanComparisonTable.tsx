@@ -1,30 +1,21 @@
 import React from 'react';
-import { Check, Minus } from 'lucide-react';
-import { PLANS, CURRENCY_SYMBOL } from 'test-analytics-shared';
+import { Check } from 'lucide-react';
+import { PLANS, FREE_TRIAL_DAYS } from 'test-analytics-shared';
 
 const free = PLANS.find((p) => p.id === 'free')!;
-const pro = PLANS.find((p) => p.id === 'pro')!;
 
-interface Row {
-  label: string;
-  free: React.ReactNode;
-  pro: React.ReactNode;
-}
-
-const ROWS: Row[] = [
-  { label: 'Projects', free: `${free.maxProjects}`, pro: `Up to ${pro.maxProjects}` },
-  { label: 'Test history retention', free: `${free.retentionDays} days`, pro: `${pro.retentionDays} days` },
-  { label: 'Pass rate, flakiness & duration metrics', free: <Check className="h-4 w-4 text-success-600" />, pro: <Check className="h-4 w-4 text-success-600" /> },
-  { label: 'Confidence score & guardrails', free: <Check className="h-4 w-4 text-success-600" />, pro: <Check className="h-4 w-4 text-success-600" /> },
-  { label: 'Module heatmap & folder metrics', free: <Check className="h-4 w-4 text-success-600" />, pro: <Check className="h-4 w-4 text-success-600" /> },
-  { label: 'Flaky test detection & alerts', free: <Check className="h-4 w-4 text-success-600" />, pro: <Check className="h-4 w-4 text-success-600" /> },
-  { label: 'Slack notifications', free: <Minus className="h-4 w-4 text-neutral-400" />, pro: <Check className="h-4 w-4 text-success-600" /> },
-  {
-    label: 'AI test investigation',
-    free: <Minus className="h-4 w-4 text-neutral-400" />,
-    pro: <span className="text-sm text-success-700">Shared key (a few/day), or bring your own for unlimited</span>,
-  },
-  { label: 'Support', free: <Minus className="h-4 w-4 text-neutral-400" />, pro: 'Email support' },
+// Pro is hidden for now and Free carries Pro-level limits/features during the
+// feedback beta (see plans.ts + PricingPlans's HIDDEN_PLAN_IDS), so this is a
+// single "what's included" list rather than a Free vs. Pro comparison.
+const ROWS: string[] = [
+  `Up to ${free.maxProjects} projects`,
+  `${free.retentionDays}-day test history retention`,
+  'Pass rate, flakiness & duration metrics',
+  'Confidence score & guardrails',
+  'Module heatmap & folder metrics',
+  'Flaky test detection & alerts',
+  'Slack notifications',
+  'AI test failure investigation (shared key, or bring your own for unlimited use)',
 ];
 
 export default function PlanComparisonTable() {
@@ -33,23 +24,18 @@ export default function PlanComparisonTable() {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b bg-neutral-50">
-            <th className="px-6 py-3 text-left font-medium text-neutral-600">Feature</th>
             <th className="px-6 py-3 text-left font-medium text-neutral-600">
-              Free
-              <span className="ml-2 font-normal text-neutral-400">{CURRENCY_SYMBOL}0</span>
-            </th>
-            <th className="px-6 py-3 text-left font-medium text-neutral-600">
-              Pro
-              <span className="ml-2 font-normal text-neutral-400">{CURRENCY_SYMBOL}{pro.priceMonthly}/mo</span>
+              Included in your {FREE_TRIAL_DAYS}-day free trial
             </th>
           </tr>
         </thead>
         <tbody>
           {ROWS.map((row) => (
-            <tr key={row.label} className="border-b last:border-0">
-              <td className="px-6 py-3 font-medium text-neutral-900">{row.label}</td>
-              <td className="px-6 py-3 text-neutral-700">{row.free}</td>
-              <td className="px-6 py-3 text-neutral-700">{row.pro}</td>
+            <tr key={row} className="border-b last:border-0">
+              <td className="flex items-start gap-2 px-6 py-3 text-neutral-800">
+                <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-success-600" />
+                <span>{row}</span>
+              </td>
             </tr>
           ))}
         </tbody>
