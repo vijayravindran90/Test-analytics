@@ -78,17 +78,22 @@ export default function TestInvestigationModal({ projectId, testId, testName, on
     setNeedsUpgrade(false);
     setDailyLimitReached(false);
     try {
-      const response = await apiClient.post(`/projects/${projectId}/tests/investigate`, {
-        testId,
-        testName,
-        forceRefresh,
-      });
+      // Generating a root cause analysis plus a full copy-paste code fix can
+      // take well past the shared client's default 10s timeout, so give this
+      // specific call more room.
+      const response = await apiClient.post(
+        `/projects/${projectId}/tests/investigate`,
+        { testId, testName, forceRefresh },
+        { timeout: 60000 }
+      );
       setInvestigation(response.data);
     } catch (err: any) {
       if (err?.response?.data?.code === 'PRO_REQUIRED') {
         setNeedsUpgrade(true);
       } else if (err?.response?.data?.code === 'AI_DAILY_LIMIT_REACHED') {
         setDailyLimitReached(true);
+      } else if (err?.code === 'ECONNABORTED') {
+        setError('The AI is taking longer than expected to respond. Please try again.');
       } else {
         setError(err?.response?.data?.error || 'Unable to investigate this test right now.');
       }
